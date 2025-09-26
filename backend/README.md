@@ -24,6 +24,10 @@
 
 ## Description
 
+[![Backend CI](https://github.com/REPLACE_OWNER/REPLACE_REPO/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/REPLACE_OWNER/REPLACE_REPO/actions/workflows/backend-ci.yml)
+
+> استبدل `REPLACE_OWNER/REPLACE_REPO` باسم حسابك والمستودع بعد إعداد الـ remote.
+
 AquaFarm Backend: NestJS + TypeORM multi-tenant aquaculture management API.
 
 Key features:
@@ -94,6 +98,7 @@ Notes:
 ## Multi-Tenancy
 
 All tenant-scoped requests SHOULD include header:
+
 ```text
 X-Tenant-Id: <tenant-id>
 ```
@@ -107,10 +112,14 @@ Why fallback? It keeps logging / context uniform (every request still has a tena
 
 Planned hardening: later we can enforce that non-`@Public()` routes reject requests that rely on fallback rather than explicit header (telemetry already possible in guard).
 
+
 ### Strict Mode
+
 Set `TENANT_STRICT=true` to force non-public routes to REQUIRE an `X-Tenant-Id` header. Public routes (`@Public`) keep using fallback.
 
+
 ### Telemetry & Logging
+
 Fallback events are logged by `TenantTelemetryService` with structured JSON (level WARN). Each HTTP request is logged (event `http_request`) including: method, path, statusCode, durationMs, tenantId, correlationId, userId (if authenticated), env, service, contentLength. Use these for tracing & anomaly detection.
 
 Example request log line:
