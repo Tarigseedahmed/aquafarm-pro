@@ -1,40 +1,41 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
-
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
+# AquaFarm Backend (NestJS)
 
 [![Backend CI](https://github.com/REPLACE_OWNER/REPLACE_REPO/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/REPLACE_OWNER/REPLACE_REPO/actions/workflows/backend-ci.yml)
 
+Multi-tenant aquaculture management API built with NestJS + TypeORM. Provides isolation via tenant headers, RLS in Postgres, and structured logging.
+
 > استبدل `REPLACE_OWNER/REPLACE_REPO` باسم حسابك والمستودع بعد إعداد الـ remote.
+
+## المحتوى
+
+- [النبذة](#النبذة)
+- [الخصائص الرئيسية](#الخصائص-الرئيسية)
+- [الإعداد](#الإعداد)
+- [التشغيل (SQLite)](#running-sqlite-quick-start)
+- [التشغيل (PostgreSQL)](#running-postgresql)
+- [الهجرة (Migrations)](#migrations)
+- [تعدد المستأجرين](#multi-tenancy)
+- [Strict Mode](#strict-mode)
+- [التتبع و السجلات](#telemetry--logging)
+- [RLS](#postgres-row-level-security-rls)
+- [Auth](#auth)
+- [البيئة](#environment)
+- [الاختبارات](#testing)
+- [التحسينات المخطط لها](#planned-enhancements)
+- [النشر](#deployment-outline)
+- [الترخيص](#license)
+
+## النبذة
 
 AquaFarm Backend: NestJS + TypeORM multi-tenant aquaculture management API.
 
-Key features:
+Current API version: 0.1.1 (docs at /docs in non-production environments).
+
+## الخصائص الرئيسية
 
 - Multi-tenancy via `X-Tenant-Id` header and `tenantId` FK columns.
 - Strict mode (`TENANT_STRICT`) + fallback default tenant with telemetry logging.
-- Correlation ID propagation (`x-correlation-id`) + structured JSON request logging (env, service, userId, contentLength).
+- Correlation ID propagation (`x-correlation-id`) + structured JSON request logging (env, service, userId, contentLength) via Pino.
 - Postgres Row-Level Security (RLS) using session GUC `app.tenant_id`.
 - Auth (JWT) with role field (admin/user) – extensible to RBAC.
 - Domain modules: farms, ponds, water quality readings, fish batches, feeding records, notifications.
@@ -42,7 +43,7 @@ Key features:
 - Migration integrity test to catch duplicate names & ensure critical columns.
 - Pluggable database: SQLite for quick start or PostgreSQL for real environments.
 
-## Project setup
+## الإعداد
 
 ```bash
 cp .env.example .env   # adjust values
@@ -103,15 +104,33 @@ All tenant-scoped requests SHOULD include header:
 X-Tenant-Id: <tenant-id>
 ```
 
-However, public (non-sensitive) routes can be marked with a `@Public()` decorator. For those routes:
+Public (non-sensitive) routes may omit it and a fallback (`DEFAULT_TENANT_CODE` or `default`) is used for logging context only. For data‑bearing endpoints always set the header explicitly to avoid future strict-mode rejections.
 
-- If the header is absent, a fallback tenant id (`DEFAULT_TENANT_ID` env var or `default-tenant`) is injected.
-- This enables uptime/health probes and a splash root endpoint without forcing a tenant header.
+Current resolution pipeline:
+ 
+1. Interceptor reads `X-Tenant-Id` (or alias headers) → resolves code to UUID.
+2. If absent and route is public → fallback code used (not recommended for mutations).
+3. Guards & services enforce tenant UUID scoping at repository queries.
 
-Why fallback? It keeps logging / context uniform (every request still has a tenantId) and simplifies infrastructure health checks. Business data routes should still send the correct tenant header explicitly for isolation.
+Example curls:
 
-Planned hardening: later we can enforce that non-`@Public()` routes reject requests that rely on fallback rather than explicit header (telemetry already possible in guard).
+```bash
+# List farms (GET)
+curl -H "Authorization: Bearer <JWT>" -H "X-Tenant-Id: default" http://localhost:3001/api/farms
 
+# Create farm (POST)
+curl -X POST \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-Id: default" \
+  -d '{"name":"Farm A"}' \
+  http://localhost:3001/api/farms
+
+# Cross-tenant access attempt (should 404 if farm not in tenant scope)
+curl -H "Authorization: Bearer <JWT_OTHER_TENANT>" -H "X-Tenant-Id: other" http://localhost:3001/api/farms/<farm-uuid>
+```
+
+Swagger UI automatically injects a reusable header parameter (X-Tenant-Id) for every operation; you can set it once per request. When `TENANT_STRICT=true`, protected endpoints will reject requests missing this header.
 
 ### Strict Mode
 
@@ -120,7 +139,7 @@ Set `TENANT_STRICT=true` to force non-public routes to REQUIRE an `X-Tenant-Id` 
 
 ### Telemetry & Logging
 
-Fallback events are logged by `TenantTelemetryService` with structured JSON (level WARN). Each HTTP request is logged (event `http_request`) including: method, path, statusCode, durationMs, tenantId, correlationId, userId (if authenticated), env, service, contentLength. Use these for tracing & anomaly detection.
+Fallback events are logged by `TenantTelemetryService` (Pino) with structured JSON at warn level. Each HTTP request is logged (event `http_request`) including: method, path, statusCode, durationMs, tenantId, correlationId, userId (if authenticated), env, service, contentLength. Use these for tracing & anomaly detection. Pretty logging is enabled automatically in non-production environments.
 
 Example request log line:
 
@@ -147,19 +166,38 @@ Migrations:
 1. Enable RLS policies for core tables (sets policies comparing each row `tenantId` against `current_setting('app.tenant_id')::uuid`).
 2. Add `tenantId` to `users` and apply policy.
 
-`TenantInterceptor` sets the session GUC `app.tenant_id` per request so the database enforces isolation even if a repository call accidentally omits the tenant predicate.
+`TenantInterceptor` sets the session GUC `app.tenant_id` per request (Postgres) so the database enforces isolation even if a repository call accidentally omits the tenant predicate.
 
 Test harness: `test/rls-postgres.e2e-spec.ts` (auto-skipped unless `DB_TYPE=postgres`).
 
 The system bootstraps a default tenant using `DEFAULT_TENANT_CODE/NAME` if empty on first use.
 
-\n## Auth
-Issue a JWT (login endpoint TBD) – token payload contains `role`. Admin routes guarded by simple AdminGuard (extend later to full RBAC).
+## Auth
 
-\n## Environment
+Issue a JWT via register/login endpoints. Payload structure:
+
+```json
+{
+  "sub": "<user-uuid>",
+  "email": "user@example.com",
+  "role": "user",
+  "tenantId": "<tenant-uuid>",
+  "iat": 1710000000,
+  "exp": 1710086400
+}
+```
+
+Security notes:
+
+- Set `JWT_SECRET` in production (rotation policy recommended).
+- Test environment injects `test-secret` via `test/setup-e2e.ts`.
+- Add refresh token rotation & revocation list in future milestone.
+
+## Environment
+
 See `.env.example` for annotated configuration (SQLite vs PostgreSQL, multi-tenancy defaults, JWT settings).
 
-\n## Testing
+## Testing
 
 Unit tests:
 
@@ -188,7 +226,7 @@ npm run test:e2e -- migration-integrity.e2e-spec.ts
 
 Postgres RLS harness (only runs under `DB_TYPE=postgres`): `rls-postgres.e2e-spec.ts`.
 
-\n## Planned Enhancements
+## Planned Enhancements
 
 - RBAC permissions matrix.
 - Indexes on (tenantId, foreign keys) for performance – future migration.
@@ -203,5 +241,6 @@ Postgres RLS harness (only runs under `DB_TYPE=postgres`): `rls-postgres.e2e-spe
 1. Provide env vars (no synchronize) and ensure `JWT_SECRET` rotation policy.
 1. Add DB connection pool sizing (production tuning).
 
-\n## License
+## License
+
 Internal / UNLICENSED (update if you change distribution model).
