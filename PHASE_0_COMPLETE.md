@@ -123,6 +123,7 @@
 - ❌ ns1.dns-parking.com, ns2.dns-parking.com
 
 **🔵 إلى:**
+
 - ✅ ns1.hostinger.com, ns2.hostinger.com, ns3.hostinger.com, ns4.hostinger.com
 
 ---
