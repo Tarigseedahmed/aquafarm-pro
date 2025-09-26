@@ -2,12 +2,24 @@ openapi: 3.0.3
 info:
   title: AquaFarm Pro API
   version: 0.1.0
-  description: Core endpoints for tenancy, IAM, farm, and accounting modules.
+  description: |
+    Core endpoints for tenancy, IAM (identity & access), farm management, and accounting modules.
+    This specification is an MVP draft and will expand as modules mature.
 servers:
   - url: https://api.aquafarm.local/v1
     description: Staging
 security:
   - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication & token issuance
+  - name: Tenants
+    description: Tenant lifecycle & administration
+  - name: Ponds
+    description: Pond management operations
+  - name: Accounting
+    description: Journal entries & financial tracking
 
 components:
   securitySchemes:
@@ -18,64 +30,211 @@ components:
   schemas:
     Tenant:
       type: object
+      required: [ id, name ]
       properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        locale: { type: string }
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        locale:
+          type: string
     User:
       type: object
+      required: [ id, tenant_id, email ]
       properties:
-        id: { type: string, format: uuid }
-        tenant_id: { type: string, format: uuid }
-        email: { type: string, format: email }
-        name: { type: string }
-        locale: { type: string }
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        locale:
+          type: string
     Pond:
       type: object
+      required: [ id, tenant_id, code ]
       properties:
-        id: { type: string, format: uuid }
-        tenant_id: { type: string, format: uuid }
-        code: { type: string }
-        name: { type: string }
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+    LoginRequest:
+      type: object
+      required: [ email, password ]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [ error, message ]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
 
 paths:
   /auth/login:
     post:
-      summary: Login and get JWT
+      tags: [ Auth ]
+      summary: Login and obtain JWT pair
+      operationId: login
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                email: { type: string }
-                password: { type: string }
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
           description: JWT issued
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  access_token: { type: string }
-                  refresh_token: { type: string }
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+            description: Invalid credentials / validation error
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication failed
   /tenants:
     get:
-      summary: List tenants (admin)
-      responses: { '200': { description: OK } }
+      tags: [ Tenants ]
+      summary: List tenants (admin scope)
+      operationId: listTenants
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
     post:
+      tags: [ Tenants ]
       summary: Create tenant
-      responses: { '201': { description: Created } }
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ name ]
+              properties:
+                name:
+                  type: string
+                locale:
+                  type: string
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          description: Validation error
   /ponds:
     get:
-      summary: List ponds
-      responses: { '200': { description: OK } }
+      tags: [ Ponds ]
+      summary: List ponds for current tenant
+      operationId: listPonds
+      responses:
+        '200':
+          description: List of ponds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pond'
     post:
+      tags: [ Ponds ]
       summary: Create pond
-      responses: { '201': { description: Created } }
+      operationId: createPond
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ code ]
+              properties:
+                code:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Pond created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pond'
+        '400':
+          description: Validation error
   /journal-entries:
     post:
+      tags: [ Accounting ]
       summary: Create journal entry with lines
-      responses: { '201': { description: Created } }
+      operationId: createJournalEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ lines ]
+              properties:
+                reference:
+                  type: string
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [ account, amount ]
+                    properties:
+                      account:
+                        type: string
+                      amount:
+                        type: number
+                        format: float
+                      description:
+                        type: string
+      responses:
+        '201':
+          description: Journal entry created
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
