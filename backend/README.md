@@ -158,6 +158,65 @@ const cid = getCorrelationId(); // string | undefined
 
 Set `SERVICE_NAME` env var to customize the `service` field in logs.
 
+### تنسيق الاستجابة الموحد
+
+جميع الاستجابات القابلة للصفحة (pagination) تُغلَّف تلقائياً عبر `PaginationInterceptor` في الشكل:
+
+```json
+{
+  "data": [ /* array of items */ ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 153,
+    "totalPages": 8
+  }
+}
+```
+
+سلوك التغليف:
+
+1. إذا أرجعت الدالة مصفوفة صِرفة: `[ ... ]` → تُحوَّل إلى `{ data: [...], meta: { total, page=1, limit=<الافتراضي> } }`.
+2. إذا أرجعت الدالة كائنًا يحتوي `items` و `total`: `{ items, total }` → تتحول إلى `{ data: items, meta: {...} }`.
+3. إذا أرجعت الدالة كائنًا يحتوي بالفعل `data` و `meta` فلن يُعاد تغليفه.
+
+الحقول:
+
+| الحقل | الوصف |
+|-------|-------|
+| data | المصفوفة الفعلية للعناصر |
+| meta.page | رقم الصفحة (1-based) |
+| meta.limit | الحد الأقصى لكل صفحة (مُقيَّد إلى 100) |
+| meta.total | العدد الكلي للعناصر قبل التقطيع |
+| meta.totalPages | = `Math.ceil(total/limit)` |
+
+مثال (إشعارات):
+
+```bash
+curl -H "Authorization: Bearer <JWT>" -H "X-Tenant-Id: default" \
+  "http://localhost:3001/api/notifications?limit=20&page=2"
+```
+
+استجابة مبسطة:
+
+```json
+{
+  "data": [{"id":"uuid","title":"..."}],
+  "meta": {"page":2,"limit":20,"total":57,"totalPages":3}
+}
+```
+
+مزايا هذا النهج:
+
+- واجهة أمامية أسهل (بنية ثابتة للصفحات).
+- إمكانية إضافة مفاتيح مستقبلية داخل `meta` (مثل hasNext، durationMs، filters) بدون كسر التوافق.
+- تبسيط الاختبارات (assert على meta + data فقط).
+
+ملاحظات تطبيق:
+
+- خدمات الدومين يُفضَّل أن تُعيد `{ items, total }` بدل توليد `meta` يدويًا.
+- في حالات النتائج الصغيرة غير المصفحة يمكن إرجاع كائن عادي دون مصفوفة؛ الـ Interceptor لن يغيّر البنية إن لم يجد Array أو النمط `{ items, total }`.
+
 ### Postgres Row Level Security (RLS)
 
 Migrations:

@@ -131,4 +131,27 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     expect(unreadB.status).toBe(200);
     expect(unreadB.body.count).toBeGreaterThanOrEqual(1);
   });
+
+  it('marks a batch of notifications as read', async () => {
+    const rec = seeded['tenant-a'];
+    // seed 3 unread notifications
+    const n1 = await createNotification('tenant-a', { isRead: false });
+    const n2 = await createNotification('tenant-a', { isRead: false });
+    const n3 = await createNotification('tenant-a', { isRead: false });
+
+    const res = await request(app.getHttpServer())
+      .post('/api/notifications/mark-batch-read')
+      .set(authHeaders(rec))
+      .send({ ids: [n1.id, n2.id] });
+    expect(res.status).toBe(201); // POST default
+    expect(res.body).toHaveProperty('updated');
+    expect(res.body.updated).toBe(2);
+
+    const refreshed1 = await notifRepo.findOne({ where: { id: n1.id } });
+    const refreshed2 = await notifRepo.findOne({ where: { id: n2.id } });
+    const refreshed3 = await notifRepo.findOne({ where: { id: n3.id } });
+    expect(refreshed1?.isRead).toBe(true);
+    expect(refreshed2?.isRead).toBe(true);
+    expect(refreshed3?.isRead).toBe(false); // untouched
+  });
 });

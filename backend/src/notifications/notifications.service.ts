@@ -48,6 +48,23 @@ export class NotificationsService {
     );
   }
 
+  // Batch mark specific notifications as read
+  async markBatchAsRead(ids: string[], userId: string, tenantId: string) {
+    if (!ids || ids.length === 0) {
+      return { updated: 0 };
+    }
+    const result = await this.notificationsRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ isRead: true })
+      .where('id IN (:...ids)', { ids })
+      .andWhere('userId = :userId', { userId })
+      .andWhere('tenantId = :tenantId', { tenantId })
+      .andWhere('isRead = :isRead', { isRead: false })
+      .execute();
+    return { updated: result.affected || 0 };
+  }
+
   // Ø­Ø°Ù Ø¥Ø´Ø¹Ø§Ø±
   async remove(id: string, userId: string, tenantId: string): Promise<void> {
     await this.notificationsRepository.delete({ id, userId, tenantId });

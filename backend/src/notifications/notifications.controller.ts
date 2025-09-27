@@ -1,13 +1,62 @@
-import { Controller, Get, Patch, Delete, Param, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  Body,
+  Post,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiQuery,
+  ApiOkResponse,
+  ApiBody,
+  ApiProperty,
+} from '@nestjs/swagger';
+import { IsArray, ArrayNotEmpty, IsUUID } from 'class-validator';
 
+export class BatchMarkReadDto {
+  @ApiProperty({ type: 'array', items: { type: 'string', format: 'uuid' } })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('4', { each: true })
+  ids: string[];
+}
+@ApiTags('notifications')
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @UseGuards(JwtAuthGuard)
   @Get()
+  @ApiOperation({ summary: 'List notifications for current user (paginated)' })
+  @ApiQuery({ name: 'limit', required: false, schema: { default: 50 } })
+  @ApiQuery({ name: 'page', required: false, schema: { default: 1 } })
+  @ApiOkResponse({
+    description: 'Paginated notifications envelope',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { $ref: '#/components/schemas/Notification' } },
+        meta: {
+          type: 'object',
+          properties: {
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            total: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
   findAll(@Request() req, @Query('limit') limit?: string, @Query('page') page?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const pageNum = page ? parseInt(page, 10) : 1;
@@ -31,6 +80,14 @@ export class NotificationsController {
   @Patch('mark-all-read')
   markAllAsRead(@Request() req) {
     return this.notificationsService.markAllAsRead(req.user.id, req.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('mark-batch-read')
+  @ApiOperation({ summary: 'Mark a batch of notifications as read' })
+  @ApiBody({ type: BatchMarkReadDto })
+  markBatchRead(@Body() body: BatchMarkReadDto, @Request() req) {
+    return this.notificationsService.markBatchAsRead(body.ids, req.user.id, req.tenantId);
   }
 
   @UseGuards(JwtAuthGuard)
