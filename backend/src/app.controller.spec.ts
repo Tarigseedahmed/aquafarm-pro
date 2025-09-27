@@ -20,7 +20,7 @@ describe('AppController', () => {
 
   describe('root', () => {
     it('should return API running message', () => {
-      expect(appController.getHello()).toBe('AquaFarm Pro API is running! ðŸŸ');
+      expect(appController.getHello()).toBe('AquaFarm Pro API is running! 🐟');
     });
   });
 });

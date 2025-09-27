@@ -85,7 +85,7 @@ export class NotificationsService {
 
     return this.create(
       {
-        userId: _userId,
+        userId,
         title: titles[alertType] || 'ØªÙ†Ø¨ÙŠÙ‡ Ø¬ÙˆØ¯Ø© Ø§Ù„Ù…ÙŠØ§Ù‡',
         message: messages[alertType] || `Ù‚ÙŠÙ…Ø© ${parameter} ÙÙŠ ${pondName}: ${value}`,
         type: 'warning',
@@ -175,7 +175,7 @@ export class NotificationsService {
   }
 
   // Ø¨ÙŠØ§Ù†Ø§Øª ØªØ¬Ø±ÙŠØ¨ÙŠØ© Ù„Ù„Ø§Ø®ØªØ¨Ø§Ø±
-  async createMockNotifications(): Promise<any[]> {
+  async createMockNotifications(userId?: string, tenantId?: string): Promise<any[]> {
     const mockNotifications = [
       {
         id: '1',
@@ -188,6 +188,8 @@ export class NotificationsService {
         priority: 'high',
         sourceType: 'pond',
         sourceId: '1',
+        userId: userId || null,
+        tenantId: tenantId || null,
         createdAt: new Date(Date.now() - 1800000), // Ù…Ù†Ø° 30 Ø¯Ù‚ÙŠÙ‚Ø©
       },
       {
@@ -200,6 +202,8 @@ export class NotificationsService {
         priority: 'medium',
         sourceType: 'fish_batch',
         sourceId: '1',
+        userId: userId || null,
+        tenantId: tenantId || null,
         createdAt: new Date(Date.now() - 3600000), // Ù…Ù†Ø° Ø³Ø§Ø¹Ø©
       },
       {
@@ -211,6 +215,8 @@ export class NotificationsService {
         category: 'maintenance',
         isRead: true,
         priority: 'medium',
+        userId: userId || null,
+        tenantId: tenantId || null,
         createdAt: new Date(Date.now() - 7200000), // Ù…Ù†Ø° Ø³Ø§Ø¹ØªÙŠÙ†
       },
       {
@@ -222,6 +228,8 @@ export class NotificationsService {
         category: 'system',
         isRead: true,
         priority: 'low',
+        userId: userId || null,
+        tenantId: tenantId || null,
         createdAt: new Date(Date.now() - 10800000), // Ù…Ù†Ø° 3 Ø³Ø§Ø¹Ø§Øª
       },
     ];

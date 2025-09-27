@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RequestLoggerMiddleware } from './common/logging/request-logger.middleware';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
+import { PaginationInterceptor } from './common/pagination/pagination.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,6 +26,8 @@ async function bootstrap() {
   app.use(reqLogger.use.bind(reqLogger));
   // Global error filter
   app.useGlobalFilters(new GlobalExceptionFilter(pino));
+  // Global pagination interceptor (idempotent wrapping for list responses)
+  app.useGlobalInterceptors(new PaginationInterceptor());
 
   // Swagger (development / staging only)
   if (process.env.NODE_ENV !== 'production') {

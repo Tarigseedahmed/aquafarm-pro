@@ -7,7 +7,7 @@ export class AppController {
   @Public()
   @Get()
   getHello(): string {
-    return 'AquaFarm Pro API is running! ðŸŸ';
+    return 'AquaFarm Pro API is running! 🐟';
   }
 
   @Public()
@@ -48,33 +48,5 @@ export class AppController {
       timestamp: new Date().toISOString(),
     };
   }
-
-  @Get('farms')
-  getFarms(): object {
-    return {
-      message: 'Mock Farms Data',
-      data: [
-        {
-          id: '1',
-          name: 'Ù…Ø²Ø±Ø¹Ø© Ø§Ù„Ø£Ø³Ù…Ø§Ùƒ Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©',
-          location: 'Ø§Ù„Ø±ÙŠØ§Ø¶ØŒ Ø§Ù„Ø³Ø¹ÙˆØ¯ÙŠØ©',
-          totalArea: 50000,
-          pondCount: 5,
-          status: 'active',
-        },
-        {
-          id: '2',
-          name: 'Ù…Ø²Ø±Ø¹Ø© Ø§Ù„Ø¨Ø­Ø± Ø§Ù„Ø£Ø²Ø±Ù‚',
-          location: 'Ø¬Ø¯Ø©ØŒ Ø§Ù„Ø³Ø¹ÙˆØ¯ÙŠØ©',
-          totalArea: 75000,
-          pondCount: 8,
-          status: 'active',
-        },
-      ],
-      total: 2,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  // Removed deprecated placeholder /ponds endpoint (real ponds module active)
+  // Removed deprecated placeholder /farms (real FarmsModule provides /farms with auth + pagination)
 }

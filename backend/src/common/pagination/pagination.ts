@@ -18,14 +18,16 @@ export interface PaginatedResult<T> {
 }
 
 export function buildMeta(total: number, page = 1, limit = 10): PaginationMeta {
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safeLimit = Math.max(1, limit);
+  const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+  const current = Math.min(Math.max(page, 1), totalPages);
   return {
     total,
-    page,
-    limit,
+    page: current,
+    limit: safeLimit,
     totalPages,
-    hasNext: page < totalPages,
-    hasPrev: page > 1,
+    hasNext: current < totalPages,
+    hasPrev: current > 1,
   };
 }
 

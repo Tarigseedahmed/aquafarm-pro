@@ -1,0 +1,36 @@
+// Centralized application error codes aligned with OpenAPI ErrorResponse usage.
+// Treat codes as stable once public.
+export enum ErrorCode {
+  // Generic / Infrastructure
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+
+  // Tenancy
+  TENANT_NOT_FOUND = 'TENANT_NOT_FOUND',
+  TENANT_INACTIVE = 'TENANT_INACTIVE',
+
+  // Auth / Users
+  USER_NOT_FOUND = 'USER_NOT_FOUND',
+  EMAIL_ALREADY_EXISTS = 'EMAIL_ALREADY_EXISTS',
+  INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
+
+  // Farms / Ponds
+  FARM_NOT_FOUND = 'FARM_NOT_FOUND',
+  POND_NOT_FOUND = 'POND_NOT_FOUND',
+
+  // Water Quality
+  WATER_READING_NOT_FOUND = 'WATER_READING_NOT_FOUND',
+
+  // Fish Batches
+  FISH_BATCH_NOT_FOUND = 'FISH_BATCH_NOT_FOUND',
+
+  // Feeding Records
+  FEEDING_RECORD_NOT_FOUND = 'FEEDING_RECORD_NOT_FOUND',
+
+  // Accounting
+  ACCOUNT_NOT_FOUND = 'ACCOUNT_NOT_FOUND',
+  JOURNAL_ENTRY_NOT_FOUND = 'JOURNAL_ENTRY_NOT_FOUND',
+}
