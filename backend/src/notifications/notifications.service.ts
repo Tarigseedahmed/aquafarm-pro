@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
@@ -8,7 +9,17 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private notificationsRepository: Repository<Notification>,
+    private eventEmitter: EventEmitter = new EventEmitter(),
   ) {}
+
+  // Allow external subscribers (e.g., controller SSE handler) to listen for new notifications.
+  onNewNotification(listener: (n: Notification) => void) {
+    this.eventEmitter.on('notification.created', listener);
+  }
+
+  offNewNotification(listener: (n: Notification) => void) {
+    this.eventEmitter.off('notification.created', listener);
+  }
 
   // Ø¥Ù†Ø´Ø§Ø¡ Ø¥Ø´Ø¹Ø§Ø± Ø¬Ø¯ÙŠØ¯
   async create(notificationData: Partial<Notification>, tenantId?: string): Promise<Notification> {
@@ -16,7 +27,10 @@ export class NotificationsService {
       ...notificationData,
       tenantId,
     });
-    return this.notificationsRepository.save(notification);
+    const saved = await this.notificationsRepository.save(notification);
+    // Emit event for SSE/WebSocket consumers
+    this.eventEmitter.emit('notification.created', saved);
+    return saved;
   }
 
   // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…
