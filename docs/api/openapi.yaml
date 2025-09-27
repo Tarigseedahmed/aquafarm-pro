@@ -15,7 +15,7 @@ info:
       - Accounting (journal entry draft capability)
 
     Notable design conventions:
-      - Pagination envelope: { data: T[], meta }
+      - Pagination envelope: { data: T[], meta } (all list endpoints unified; legacy array root keys deprecated and scheduled for removal in v0.4.0)
       - Standardized error responses via reusable components (ValidationError, UnauthorizedError, NotFoundError, ForbiddenError)
       - Consistent 201 bodies & 204 for destructive deletes
       - Examples supplied for major resource schemas & list responses
@@ -90,6 +90,57 @@ components:
         totalPages: 5
         hasNext: true
         hasPrev: false
+    PaginatedList:
+      type: object
+      description: Generic paginated list envelope
+      properties:
+        data:
+          type: array
+          items: { type: object }
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    PagedPondList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Pond' }
+      example:
+        data:
+          - $ref: '#/components/schemas/Pond/example'
+        meta:
+          total: 1
+          page: 1
+          limit: 25
+          totalPages: 1
+          hasNext: false
+          hasPrev: false
+    PagedFarmList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Farm' }
+    PagedWaterQualityReadingList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WaterQualityReading' }
+    PagedUserList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
     Pond:
       type: object
       description: Pond resource inside a farm.
