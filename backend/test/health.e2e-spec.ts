@@ -10,8 +10,8 @@ describe('Health Check (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleFixture.createNestApplication();
-    await app.init();
+    const { bootstrapTestApp } = await import('./bootstrap-test-app');
+    app = await bootstrapTestApp(moduleFixture);
   });
 
   afterAll(async () => {
@@ -19,7 +19,7 @@ describe('Health Check (e2e)', () => {
   });
 
   it('GET /health returns ok without tenant header', async () => {
-    const res = await request(app.getHttpServer()).get('/health').expect(200);
+    const res = await request(app.getHttpServer()).get('/api/health').expect(200);
     expect(res.body).toHaveProperty('status', 'ok');
     expect(res.body).toHaveProperty('service');
     expect(res.body).toHaveProperty('timestamp');

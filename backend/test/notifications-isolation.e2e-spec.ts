@@ -84,6 +84,28 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     expect(listB.body.data.some((n: any) => n.message.includes('tenant-a'))).toBe(false);
   });
 
+  it('paginates notifications with consistent meta on page 2', async () => {
+    const rec = seeded['tenant-a'];
+    // seed > 55 notifications to span at least 2 pages (limit=50 default)
+    for (let i = 0; i < 55; i++) {
+      await createNotification('tenant-a', { title: `Paged N${i}` });
+    }
+    const page2 = await request(app.getHttpServer())
+      .get('/api/notifications?page=2&limit=20')
+      .set(authHeaders(rec));
+    expect(page2.status).toBe(200);
+    expect(page2.body).toHaveProperty('data');
+    expect(page2.body).toHaveProperty('meta');
+    expect(page2.body.meta.page).toBe(2);
+    expect(page2.body.meta.limit).toBe(20);
+    expect(page2.body.meta.total).toBeGreaterThanOrEqual(55); // includes earlier seeded rows
+    const expectedTotalPages = Math.ceil(page2.body.meta.total / 20);
+    expect(page2.body.meta.totalPages).toBe(expectedTotalPages);
+    // Ensure no duplicate ids within page slice
+    const ids = page2.body.data.map((n: any) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('unread count is tenant + user specific', async () => {
     const a = seeded['tenant-a'];
     const b = seeded['tenant-b'];

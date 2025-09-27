@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
@@ -22,13 +22,9 @@ describe('Tenant Isolation (e2e)', () => {
     process.env.MIGRATIONS_RUN = 'true';
     process.env.JWT_SECRET = 'test-secret';
 
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const { bootstrapTestApp } = await import('./bootstrap-test-app');
+    app = await bootstrapTestApp(moduleRef);
 
     dataSource = app.get(DataSource);
     jwtService = app.get(JwtService);
@@ -51,7 +47,7 @@ describe('Tenant Isolation (e2e)', () => {
 
     // Create pond under tenant A
     const createA = await request(app.getHttpServer())
-      .post('/ponds')
+      .post('/api/ponds')
       .set(authHeaders(tenantA))
       .send({ name: 'Pond A1', farmId: tenantA.farmId, area: 100, depth: 2, maxCapacity: 500 });
     if (createA.status !== 201) {
@@ -62,7 +58,7 @@ describe('Tenant Isolation (e2e)', () => {
 
     // Create pond under tenant B
     const createB = await request(app.getHttpServer())
-      .post('/ponds')
+      .post('/api/ponds')
       .set(authHeaders(tenantB))
       .send({ name: 'Pond B1', farmId: tenantB.farmId, area: 80, depth: 1.5, maxCapacity: 300 });
     if (createB.status !== 201) {
@@ -72,10 +68,10 @@ describe('Tenant Isolation (e2e)', () => {
     expect(createB.status).toBe(201);
 
     // List ponds for tenant A
-    const listA = await request(app.getHttpServer()).get('/ponds').set(authHeaders(tenantA));
+    const listA = await request(app.getHttpServer()).get('/api/ponds').set(authHeaders(tenantA));
 
     expect(listA.status).toBe(200);
-    const pondsA = listA.body.ponds || listA.body.data || listA.body;
+    const pondsA = listA.body.data || listA.body.ponds || listA.body;
     if (!Array.isArray(pondsA)) {
       // eslint-disable-next-line no-console
       console.log('List A raw body:', listA.body);
@@ -85,10 +81,10 @@ describe('Tenant Isolation (e2e)', () => {
     expect(pondsA.some((p: any) => p.name === 'Pond B1')).toBeFalsy();
 
     // List ponds for tenant B
-    const listB = await request(app.getHttpServer()).get('/ponds').set(authHeaders(tenantB));
+    const listB = await request(app.getHttpServer()).get('/api/ponds').set(authHeaders(tenantB));
 
     expect(listB.status).toBe(200);
-    const pondsB = listB.body.ponds || listB.body.data || listB.body;
+    const pondsB = listB.body.data || listB.body.ponds || listB.body;
     if (!Array.isArray(pondsB)) {
       // eslint-disable-next-line no-console
       console.log('List B raw body:', listB.body);

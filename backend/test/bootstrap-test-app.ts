@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { TestingModule } from '@nestjs/testing';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
@@ -6,33 +5,23 @@ import { PaginationInterceptor } from '../src/common/pagination/pagination.inter
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { PinoLoggerService } from '../src/common/logging/pino-logger.service';
 
-/**
- * Creates an application instance mirroring main.ts bootstrap logic
- * (prefix, pipes, filters, interceptors, swagger) for e2e tests.
- * Intentionally always enables Swagger so tests can assert documentation.
- */
+// Creates an application instance mirroring main.ts bootstrap logic for e2e tests.
 export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<INestApplication> {
   const app = moduleFixture.createNestApplication();
 
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
 
-  // Logging / filter (guard in case logging module not imported for a spec)
   let pino: PinoLoggerService | undefined;
   try {
-  pino = app.get(PinoLoggerService);
+    pino = app.get(PinoLoggerService);
   } catch {}
   app.useGlobalFilters(new GlobalExceptionFilter(pino as any));
   app.useGlobalInterceptors(new PaginationInterceptor());
 
-  // Swagger (always in tests for deterministic docs assertions)
   const config = new DocumentBuilder()
     .setTitle('AquaFarm Pro API')
     .setDescription(
@@ -43,7 +32,6 @@ export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<IN
     .build();
   const document = SwaggerModule.createDocument(app, config);
 
-  // Inject reusable header param (idempotent)
   document.components ||= {};
   (document.components as any).parameters ||= {};
   if (!(document.components as any).parameters['XTenantIdHeader']) {
@@ -53,11 +41,11 @@ export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<IN
       required: false,
       description: 'Tenant code or UUID for scoping requests.',
       schema: { type: 'string', example: 'default' },
-  };
+    };
   }
 
   for (const pathKey of Object.keys(document.paths)) {
-  const pathItem: any = (document.paths as any)[pathKey];
+    const pathItem: any = (document.paths as any)[pathKey];
     for (const method of Object.keys(pathItem)) {
       const op = pathItem[method];
       if (!op || typeof op !== 'object') continue;
@@ -65,15 +53,11 @@ export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<IN
       const already = op.parameters.some(
         (p: any) => p.name === 'X-Tenant-Id' || p['$ref']?.endsWith('XTenantIdHeader'),
       );
-      if (!already) {
-        op.parameters.push({ $ref: '#/components/parameters/XTenantIdHeader' });
-      }
+      if (!already) op.parameters.push({ $ref: '#/components/parameters/XTenantIdHeader' });
     }
   }
 
-  SwaggerModule.setup('docs', app, document, {
-    swaggerOptions: { persistAuthorization: true },
-  });
+  SwaggerModule.setup('docs', app, document, { swaggerOptions: { persistAuthorization: true } });
 
   await app.init();
   return app;

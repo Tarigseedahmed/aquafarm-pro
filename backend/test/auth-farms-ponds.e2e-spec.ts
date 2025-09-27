@@ -1,6 +1,6 @@
 import * as request from 'supertest';
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { AppModule } from '../src/app.module';
 
 // Helper to register & login and return token
@@ -46,10 +46,8 @@ describe('Auth + Farms + Ponds multi-tenant isolation (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    const { bootstrapTestApp } = await import('./bootstrap-test-app');
+    app = await bootstrapTestApp(moduleRef);
   });
 
   afterAll(async () => {
