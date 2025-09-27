@@ -96,8 +96,9 @@ export class NotificationsController {
   // Clients connect with EventSource('/api/notifications/stream') including auth token header (fetch polyfill or custom since native EventSource can't set headers).
   // For now, we allow token via query param 'token' fallback (documenting security tradeoff for MVP).
   @Get('stream')
+  @UseGuards(JwtAuthGuard)
   async stream(@Request() req, @Res() res: Response) {
-    // Basic auth reuse: if request.user is present (JwtAuthGuard could be applied). For MVP we proceed without guard to avoid CORS header complexities, but recommended to protect.
+    // Protected by JwtAuthGuard: req.user + req.tenantId expected.
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
