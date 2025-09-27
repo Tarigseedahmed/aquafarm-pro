@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { DataSource, Repository } from 'typeorm';
@@ -23,9 +23,8 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     process.env.JWT_SECRET = 'test-secret';
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    const { bootstrapTestApp } = await import('./bootstrap-test-app');
+    app = await bootstrapTestApp(moduleRef);
 
     dataSource = app.get(DataSource);
     notifRepo = dataSource.getRepository(Notification);
@@ -64,19 +63,25 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     await createNotification('tenant-a');
     await createNotification('tenant-b');
 
-    const listA = await request(app.getHttpServer()).get('/notifications').set(authHeaders(a));
+    const listA = await request(app.getHttpServer())
+      .get('/api/notifications?page=1&limit=50')
+      .set(authHeaders(a));
     expect(listA.status).toBe(200);
-    const notifA = listA.body.notifications || listA.body.data || listA.body;
-    expect(Array.isArray(notifA)).toBe(true);
-    expect(notifA.every((n: any) => n.tenantId === a.tenantId)).toBe(true);
-    expect(notifA.some((n: any) => n.message.includes('tenant-b'))).toBe(false);
+    expect(listA.body).toHaveProperty('data');
+    expect(listA.body).toHaveProperty('meta');
+    expect(Array.isArray(listA.body.data)).toBe(true);
+    expect(listA.body.data.every((n: any) => n.tenantId === a.tenantId)).toBe(true);
+    expect(listA.body.data.some((n: any) => n.message.includes('tenant-b'))).toBe(false);
 
-    const listB = await request(app.getHttpServer()).get('/notifications').set(authHeaders(b));
+    const listB = await request(app.getHttpServer())
+      .get('/api/notifications?page=1&limit=50')
+      .set(authHeaders(b));
     expect(listB.status).toBe(200);
-    const notifB = listB.body.notifications || listB.body.data || listB.body;
-    expect(Array.isArray(notifB)).toBe(true);
-    expect(notifB.every((n: any) => n.tenantId === b.tenantId)).toBe(true);
-    expect(notifB.some((n: any) => n.message.includes('tenant-a'))).toBe(false);
+    expect(listB.body).toHaveProperty('data');
+    expect(listB.body).toHaveProperty('meta');
+    expect(Array.isArray(listB.body.data)).toBe(true);
+    expect(listB.body.data.every((n: any) => n.tenantId === b.tenantId)).toBe(true);
+    expect(listB.body.data.some((n: any) => n.message.includes('tenant-a'))).toBe(false);
   });
 
   it('unread count is tenant + user specific', async () => {
@@ -92,14 +97,14 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     await createNotification('tenant-b', { isRead: false });
 
     const unreadA = await request(app.getHttpServer())
-      .get('/notifications/unread-count')
+      .get('/api/notifications/unread-count')
       .set(authHeaders(a));
     expect(unreadA.status).toBe(200);
     expect(unreadA.body).toHaveProperty('count');
     expect(unreadA.body.count).toBeGreaterThanOrEqual(2);
 
     const unreadB = await request(app.getHttpServer())
-      .get('/notifications/unread-count')
+      .get('/api/notifications/unread-count')
       .set(authHeaders(b));
     expect(unreadB.status).toBe(200);
     expect(unreadB.body.count).toBeGreaterThanOrEqual(1);

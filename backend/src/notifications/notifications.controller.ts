@@ -8,9 +8,10 @@ export class NotificationsController {
 
   @UseGuards(JwtAuthGuard)
   @Get()
-  findAll(@Request() req, @Query('limit') limit?: string) {
+  findAll(@Request() req, @Query('limit') limit?: string, @Query('page') page?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 50;
-    return this.notificationsService.findByUserId(req.user.id, req.tenantId, limitNum);
+    const pageNum = page ? parseInt(page, 10) : 1;
+    return this.notificationsService.findByUserId(req.user.id, req.tenantId, limitNum, pageNum);
   }
 
   @UseGuards(JwtAuthGuard)

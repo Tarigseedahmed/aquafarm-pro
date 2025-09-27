@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
-import { buildMeta, envelope } from '../common/pagination/pagination';
 
 @Injectable()
 export class NotificationsService {
@@ -22,14 +21,17 @@ export class NotificationsService {
 
   // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…
   async findByUserId(userId: string, tenantId: string, limit = 50, page = 1) {
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = page < 1 ? 1 : page;
+    const skip = (safePage - 1) * safeLimit;
     const [rows, total] = await this.notificationsRepository.findAndCount({
       where: { userId, tenantId },
       order: { createdAt: 'DESC' },
-      take: limit,
+      take: safeLimit,
       skip,
     });
-    return { ...envelope(rows, buildMeta(total, page, limit)), notifications: rows };
+    // Return plain items+total so PaginationInterceptor provides { data, meta }
+    return { items: rows, total };
   }
 
   // ØªØ­Ø¯ÙŠØ« Ø¥Ø´Ø¹Ø§Ø± ÙƒÙ…Ù‚Ø±ÙˆØ¡
