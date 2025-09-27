@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      DB_TYPE: sqlite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install root dependencies (frontend + backend)
+        run: npm install --workspaces
+
+      - name: Lint backend
+        working-directory: ./backend
+        run: npm run lint --if-present
+
+      - name: Unit tests backend
+        working-directory: ./backend
+        run: npm test -- --ci --reporters=default --passWithNoTests
+
+      - name: E2E tests backend
+        working-directory: ./backend
+        run: npm run test:e2e -- --ci --reporters=default --passWithNoTests
+
+      - name: API spec lint
+        working-directory: ./backend
+        run: npm run spec:lint
+
+      - name: Frontend install & lint (optional)
+        run: |
+          if [ -f frontend/package.json ]; then \
+            (cd frontend && npm install && npm run lint --if-present || echo "Frontend lint skipped"); \
+          else \
+            echo "No frontend/package.json, skipping"; \
+          fi
+
+      - name: Summary
+        run: echo "CI pipeline completed."
