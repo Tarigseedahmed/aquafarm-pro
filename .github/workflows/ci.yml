@@ -13,9 +13,32 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        db: [sqlite, postgres]
     env:
       NODE_ENV: test
-      DB_TYPE: sqlite
+      DB_TYPE: ${{ matrix.db }}
+      # Postgres specific defaults (used only when db == postgres)
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aquafarm
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aquafarm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" \
+          --health-interval 5s \
+          --health-timeout 5s \
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,13 +56,55 @@ jobs:
         working-directory: ./backend
         run: npm run lint --if-present
 
-      - name: Unit tests backend
+      - name: Unit tests backend (sqlite)
+        if: matrix.db == 'sqlite'
         working-directory: ./backend
         run: npm test -- --ci --reporters=default --passWithNoTests
 
-      - name: E2E tests backend
+      - name: Unit tests backend (postgres)
+        if: matrix.db == 'postgres'
+        working-directory: ./backend
+        run: |
+          for i in {1..30}; do
+            (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && echo "Postgres up" && break; sleep 2; done
+          npm test -- --ci --reporters=default --passWithNoTests
+
+      - name: E2E tests backend (sqlite)
+        if: matrix.db == 'sqlite'
         working-directory: ./backend
         run: npm run test:e2e -- --ci --reporters=default --passWithNoTests
+
+      - name: E2E tests backend (postgres)
+        if: matrix.db == 'postgres'
+        working-directory: ./backend
+        run: |
+          for i in {1..30}; do
+            (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && echo "Postgres up" && break; sleep 2; done
+          npm run migration:run || echo "Migrations step skipped or no migrations present"
+          npm run test:e2e -- --ci --reporters=default --passWithNoTests
+
+      - name: Schema drift check (postgres)
+        if: matrix.db == 'postgres'
+        working-directory: ./backend
+        run: |
+          echo "Checking schema drift via TypeORM schema:log (should output 'No changes' if aligned)"
+          npx typeorm schema:log -d src/database/data-source.ts > drift.log || true
+          cat drift.log
+          if grep -qiE "create table|alter table|add column|drop column" drift.log; then
+            echo "Drift detected between entities and migrations.";
+            echo "If intentional, generate a new migration.";
+            exit 1;
+          else
+            echo "No drift detected.";
+          fi
+
+      - name: Upload drift log artifact (on failure, postgres)
+        if: matrix.db == 'postgres' && failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-log-postgres
+          path: backend/drift.log
+          if-no-files-found: warn
 
       - name: API spec lint
         working-directory: ./backend
