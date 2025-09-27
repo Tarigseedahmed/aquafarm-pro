@@ -23,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { IsArray, ArrayNotEmpty, IsUUID } from 'class-validator';
 import { Response } from 'express';
+import { ApiProduces, ApiResponse } from '@nestjs/swagger';
 
 export class BatchMarkReadDto {
   @ApiProperty({ type: 'array', items: { type: 'string', format: 'uuid' } })
@@ -97,6 +98,10 @@ export class NotificationsController {
   // For now, we allow token via query param 'token' fallback (documenting security tradeoff for MVP).
   @Get('stream')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Server-Sent Events stream of real-time notifications for the user' })
+  @ApiProduces('text/event-stream')
+  @ApiResponse({ status: 200, description: 'SSE stream established' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async stream(@Request() req, @Res() res: Response) {
     // Protected by JwtAuthGuard: req.user + req.tenantId expected.
     res.setHeader('Content-Type', 'text/event-stream');

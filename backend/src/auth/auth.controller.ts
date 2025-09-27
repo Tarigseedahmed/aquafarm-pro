@@ -4,7 +4,9 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -18,6 +20,10 @@ export class AuthController {
   // @nestjs/throttler v6 expects a map of throttler names to option objects.
   // We reference the 'global' throttler name (configured in AppModule) and override limit/ttl.
   @Post('login')
+  @ApiOperation({ summary: 'Authenticate user and return JWT access token' })
+  @ApiResponse({ status: 201, description: 'Successful authentication' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 429, description: 'Too many login attempts (rate limited)' })
   @Throttle({
     global: { limit: 5, ttl: 60 }, // 5 attempts per minute per IP for login
   })
