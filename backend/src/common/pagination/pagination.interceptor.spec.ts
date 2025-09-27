@@ -82,4 +82,24 @@ describe('PaginationInterceptor', () => {
       done();
     });
   });
+
+  it('normalizes negative page and zero/negative limit (defaults page=1, limit=25)', (done) => {
+    const ctx = createCtx({ page: '-5', limit: '0' });
+    const handler = createHandler({ items: [{}, {}], total: 2 });
+    interceptor.intercept(ctx, handler).subscribe((res) => {
+      expect(res.meta.page).toBe(1);
+      expect(res.meta.limit).toBe(25); // interceptor fallback for falsy/invalid limit
+      done();
+    });
+  });
+
+  it('clamps page beyond totalPages to last page', (done) => {
+    const ctx = createCtx({ page: '999', limit: '10' });
+    const handler = createHandler({ items: [{}, {}], total: 12 }); // totalPages = 2
+    interceptor.intercept(ctx, handler).subscribe((res) => {
+      expect(res.meta.totalPages).toBe(2);
+      expect(res.meta.page).toBe(2); // clamped
+      done();
+    });
+  });
 });
