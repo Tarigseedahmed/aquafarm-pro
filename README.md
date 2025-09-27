@@ -224,6 +224,108 @@ npm run dev
 
 ---
 
+## Pagination
+
+Standard paginated responses:
+
+```
+{
+   "data": [ ...items ],
+   "meta": {
+      "total": 123,
+      "page": 1,
+      "limit": 25,
+      "totalPages": 5,
+      "hasNext": true,
+      "hasPrev": false
+   }
+}
+```
+
+During a deprecation window (up to version 0.4.0) some list endpoints ALSO include legacy array keys (e.g. `ponds`, `batches`, `records`, `notifications`). These will be removed in v0.4.0. Please migrate any clients to consume the unified `data` + `meta` envelope only.
+
+## Rate Limiting
+
+We apply a global rate limit policy using `@nestjs/throttler` (v6) with the following baseline:
+
+- Global throttler name: `global`
+- Window (ttl): 60 seconds
+- Limit: 100 requests / IP / window
+
+Per-route overrides use the map-style decorator signature provided by v6:
+
+```ts
+@Throttle({
+   global: { limit: 5, ttl: 60 }, // 5 requests per minute for this route
+})
+```
+
+Current overrides:
+
+| Endpoint            | Limit | TTL (s) | Notes                          |
+|---------------------|-------|---------|--------------------------------|
+| POST /auth/login    | 5     | 60      | Protects brute-force attempts |
+
+429 Response example (shape may be wrapped by global exception filter):
+
+```json
+{
+   "statusCode": 429,
+   "message": "Too Many Requests"
+}
+```
+
+Clients SHOULD implement exponential backoff when encountering HTTP 429 and may inspect a future `Retry-After` header (to be added later).
+
+## Real-time Notifications (SSE)
+
+An MVP Server-Sent Events endpoint streams newly created notifications for the authenticated user & tenant:
+
+Endpoint: `GET /api/notifications/stream`
+
+Requirements:
+- Authenticated (JWT Bearer) — same Authorization header as other protected routes.
+- Connection kept alive; server sends a ping comment every 25 seconds.
+
+Event format:
+
+```
+event: notification
+data: { ...NotificationJSON }
+
+```
+
+Basic browser usage (note native EventSource cannot set custom headers—use a polyfill or token cookie):
+
+```js
+// If JWT is in an HttpOnly cookie, native EventSource works:
+const es = new EventSource('/api/notifications/stream');
+es.addEventListener('notification', (e) => {
+   const notif = JSON.parse(e.data);
+   console.log('New notification', notif);
+});
+es.onerror = () => {
+   // Optionally implement reconnect with backoff
+};
+```
+
+If you must attach an Authorization header, consider using `fetch-event-source` (WHATWG streams) or a lightweight wrapper that opens a fetch and parses the SSE frames manually.
+
+Future enhancements planned:
+- WebSocket gateway (bi-directional actions: mark-as-read, ack).
+- Redis or message broker backed pub/sub for horizontal scale.
+- Last-Event-ID support for resumable streams.
+- Named throttler for stream connection attempts.
+
+Security considerations:
+- Avoid passing JWT tokens as query params (logged in proxies). Prefer cookies or polyfill supporting headers.
+- SSE stream currently filters events by `tenantId` and `userId` at emission time in the controller.
+
+## Error Handling & Envelope
+
+Most list endpoints are automatically wrapped by a PaginationInterceptor returning `{ data, meta }`. Non-list endpoints return their natural object shapes. Errors are normalized via a global exception filter (Pino structured logging + JSON response), including validation errors.
+
+
 ## English
 
 ### Overview
