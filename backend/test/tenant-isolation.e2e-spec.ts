@@ -4,11 +4,7 @@ import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
 import * as request from 'supertest';
 import { JwtService } from '@nestjs/jwt';
-import {
-  seedTenantFarmUser,
-  buildAuthHeaders,
-  SeedBasic,
-} from './utils/seeding';
+import { seedTenantFarmUser, buildAuthHeaders, SeedBasic } from './utils/seeding';
 
 // Simple helper to construct auth header or bypass if auth not implemented fully.
 // For now we assume JwtAuthGuard expects a user on request; we can mock by overriding guard in test module if needed.
@@ -76,12 +72,10 @@ describe('Tenant Isolation (e2e)', () => {
     expect(createB.status).toBe(201);
 
     // List ponds for tenant A
-    const listA = await request(app.getHttpServer())
-      .get('/ponds')
-      .set(authHeaders(tenantA));
+    const listA = await request(app.getHttpServer()).get('/ponds').set(authHeaders(tenantA));
 
     expect(listA.status).toBe(200);
-  const pondsA = listA.body.ponds || listA.body.data || listA.body;
+    const pondsA = listA.body.ponds || listA.body.data || listA.body;
     if (!Array.isArray(pondsA)) {
       // eslint-disable-next-line no-console
       console.log('List A raw body:', listA.body);
@@ -91,12 +85,10 @@ describe('Tenant Isolation (e2e)', () => {
     expect(pondsA.some((p: any) => p.name === 'Pond B1')).toBeFalsy();
 
     // List ponds for tenant B
-    const listB = await request(app.getHttpServer())
-      .get('/ponds')
-      .set(authHeaders(tenantB));
+    const listB = await request(app.getHttpServer()).get('/ponds').set(authHeaders(tenantB));
 
     expect(listB.status).toBe(200);
-  const pondsB = listB.body.ponds || listB.body.data || listB.body;
+    const pondsB = listB.body.ponds || listB.body.data || listB.body;
     if (!Array.isArray(pondsB)) {
       // eslint-disable-next-line no-console
       console.log('List B raw body:', listB.body);

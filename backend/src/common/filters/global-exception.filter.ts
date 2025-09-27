@@ -1,11 +1,5 @@
 // Global exception filter (single copy, LF normalized)
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorCode } from '../errors/error-codes.enum';
 import { PinoLoggerService } from '../logging/pino-logger.service';

@@ -16,9 +16,12 @@ describe('AppController (e2e)', () => {
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+    return (
+      request(app.getHttpServer())
+        .get('/')
+        .expect(200)
+        // Updated expected root message to reflect branded API banner
+        .expect('AquaFarm Pro API is running! 🐟')
+    );
   });
 });

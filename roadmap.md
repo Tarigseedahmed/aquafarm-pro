@@ -367,6 +367,44 @@
 
 ---
 
+## 15.1 تقدم فعلي (Sprint 1 – Backend Core Slice)
+
+تم إنجاز شريحة أولى من الـ Backend تركز على: المصادقة، التعددية (Multi-Tenancy) وعزل الموارد (Farms, Ponds) مع إعداد توثيق Swagger وتحسينات قابلية الاختبار.
+
+### الإنجازات التقنية المكتملة
+
+| المجال | الوضع | ملاحظات |
+|--------|-------|---------|
+| Auth (JWT) | ✅ | توحيد السر عبر ConfigService + Payload (sub, tenantId, role) |
+| Multi-Tenancy Interceptor | ✅ | استخراج X-Tenant-Id وتحويل code → UUID + تعيين GUC لاحقاً للـ Postgres |
+| Tenant Isolation في الخدمات | ✅ | تقييد جميع استعلامات farms/ponds بـ tenantId |
+| Ponds & Farms CRUD (MVP) | ✅ | إنشاء + استعلام + تحديث + حذف ضمن العزل |
+| Events Logging | ✅ | farm.created / pond.created / http_request / swagger.enabled |
+| RolesGuard مبدئي | ✅ | دعم @Roles('admin') على بعض المسارات |
+| E2E Tests | ✅ | تدفق register → create farm → create pond + اختبارات منع العبور بين التنانت |
+| Stats Isolation Test | ✅ | اختبار get /farms/:id/stats يحظر الوصول عبر Tenant آخر |
+| Swagger Global Header | ✅ | حقن بارامتر X-Tenant-Id تلقائياً في جميع العمليات |
+| README تحديث | ✅ | أمثلة متعددة للمزارع والأحواض مع الهيدر |
+
+### الفجوات المتبقية (ضمن نفس المجال)
+
+| عنصر | الحالة الحالية | الإجراء القادم |
+|------|---------------|---------------|
+| RBAC تفصيلي | Placeholder RolesGuard | تصميم مصفوفة صلاحيات granular Sprint لاحق |
+| Water Quality Module | غير منفذ | ضمن Sprint 2 المقترح |
+| Accounting Seed | غير منفذ | لاحق بعد استقرار نطاق الدومين الأساسي |
+| Postgres RLS فعلي (Policies) | تصميم مبدئي فقط | تطبيق migrations عند التحول لبيئة Postgres |
+
+### مؤشرات سريعة
+
+* جميع اختبارات E2E ذات الصلة تمر (Isolation ✅).
+* لا تسريبات cross-tenant مكتشفة في الحالات المغطاة بالاختبارات.
+* واجهة Swagger (/docs) مفعّلة محلياً (NODE_ENV != production) وتحقن الهيدر عالمياً.
+
+---
+
+---
+
 ### ملاحظة أخيرة
 
 تم تصميم هذه الخطة لتكون شاملة وقابلة للتنفيذ خطوة بخطوة. إذا رغبت، يمكنني الآن توليد: ERD مفصل + SQL schema ابتدائي + نموذج API (OpenAPI) + صفحات Figma مبدئية. حدد ما ترغب أن أبدأ به فوراً.
@@ -476,9 +514,9 @@
 
 *إذا رغبت، أستطيع الآن:*
 
-* 1. توليد نموذج API عملي (OpenAPI) لنقاط النهاية أعلاه.
-* 2. إنشاء مسودات سكربتات ETL وملفات إعداد MLOps (MLflow, Dockerfile, deployment manifests).
-* 3. بناء PoC صغير (كود تدريب نموذجي + endpoint serving) باستخدام بيانات تجريبية افتراضية.
+*1. توليد نموذج API عملي (OpenAPI) لنقاط النهاية أعلاه.
+*2. إنشاء مسودات سكربتات ETL وملفات إعداد MLOps (MLflow, Dockerfile, deployment manifests).
+*3. بناء PoC صغير (كود تدريب نموذجي + endpoint serving) باستخدام بيانات تجريبية افتراضية.
 
 اختر رقم أو أكثر لأبدأ التنفيذ فورًا.
 
@@ -498,4 +536,166 @@
 
 ### 17.2 التوافق مع الأنظمة الضريبية
 
-* \*\*إ
+يستلزم النظام طبقة إعداد ضريبي (Tax Configuration Layer) قابلة للتخصيص لكل Tenant مع دعم القواعد المشتركة افتراضيًا وإعادة تعريف محلية. العناصر الأساسية:
+
+| عنصر | وصف | قابلية التهيئة |
+|-------|-----|-----------------|
+| VAT Rates | نسب ضريبة القيمة المضافة (5%, 15%, 0%, معفي) | لكل دولة / Tenant |
+| Withholding Tax | استقطاع عند المصدر لبعض أنواع المدفوعات | لكل دولة |
+| Zakat (السعودية) | حساب الزكاة على رأس المال/الوعاء الزكوي | تمكين / تعطيل + معادلات |
+| E-Invoice Profile | شكل الفاتورة الإلكترونية (حقل QR, UUID, Signing) | لكل دولة |
+| Rounding Rules | سياسة التقريب (نكسة/أقرب/لأعلى) | لكل عملة |
+| Tax Exempt Codes | رموز الإعفاء / الأساس القانوني | قاموس محلي |
+
+### 17.3 طبقة المحرك الضريبي (Tax Engine Layer)
+
+مكوّن منفصل (module) يقوم بـ:
+
+1. تحليل سطور الفاتورة (Lines) وتحديد معدل الضريبة بناءً على: نوع السلعة، جهة التوريد، الدولة، تاريخ السريان.
+2. دعم قواعد تاريخية (Effective Date) لتغيّر معدلات الضريبة.
+3. إرجاع تفاصيل ضريبية مفصّلة: (Base Amount, Tax Rate, Tax Amount, ExemptionReason, TaxCode).
+4. توليد تجميع (Tax Summary) للفواتير والتقارير (VAT Return / إقرار ضريبي).
+5. توفير API داخلي: `calculateInvoiceTax(draftInvoiceDto) => TaxComputationResult`.
+
+### 17.4 الفوترة الإلكترونية (E-Invoicing) — متطلبات مختارة
+
+| دولة | متطلبات رئيسية | تبعات تقنية |
+|------|----------------|-------------|
+| السعودية (ZATCA) | TLV QR, UUID, توقيع رقمي، فترة مرحلة | مكتبة توليد TLV + مفاتيح توقيع + تخزين Hash |
+| مصر | بوابة EGS, Token OAuth, إرسال XML/JSON | موصل (Connector) + Queue للـ retry |
+| الإمارات | فاتورة ضريبية قياسية (لا زال بسيط) | تنسيق PDF/HTML + أرقام تسلسلية |
+| دول أخرى | لاحقاً | تصميم واجهة Plug-in |
+
+مراحل التنفيذ المقترحة للفوترة الإلكترونية:
+
+1. طبقة تجريد (Adapter Interface).
+2. موصل ZATCA (Sandbox) + اختبارات.
+3. موصل EGS (مصر) + إدارة الرموز (Token Rotation).
+4. إدراج حالة التدفق ضمن Workflow (Draft -> Approved -> Reported -> Acknowledged).
+
+### 17.5 مخطط الحسابات (Chart of Accounts) المحلي
+
+نهج: قالب IFRS أساسي + Overlays لكل دولة:
+
+* السعودية: حسابات الزكاة، الاحتياطي النظامي.
+* مصر: حسابات الضرائب المؤجلة، فروق العملة.
+* الإمارات: بساطة أعلى (IFRS مباشر).
+
+تنفيذ: جدول `chart_templates` + جدول `tenant_chart_accounts` (يولد من القالب + يسمح بالتخصيص المحدود).
+
+### 17.6 العملات المتعددة والتقييم (Multi-Currency)
+
+* تخزين جميع السجلات بالقيمة المحلية + عملة عرض (reporting currency) إذا تم تمكينها.
+* جدول أسعار صرف يومي (FX Rates) مع مصدر (ECB / OpenExchange / Manual).
+* توليد قيود فروق العملة (Unrealized / Realized FX) نهاية الفترة.
+
+### 17.7 القيود المحاسبية التلقائية (Auto Posting Rules)
+
+| حدث | قيود أساسية | ملاحظات |
+|-----|-------------|---------|
+| شراء أعلاف | Debit Inventory / Credit Accounts Payable | تطبيق الضريبة المدخلة |
+| استهلاك أعلاف | Debit COGS / Credit Inventory | Batch Job / مباشر |
+| نفوق | Debit Loss Account / Credit Inventory / Biological Assets | يعتمد على سياسات تقييم |
+| بيع منتجات (Harvest) | Debit Accounts Receivable / Credit Revenue + VAT Output | عند إصدار فاتورة |
+| تحصيل | Debit Cash / Credit Accounts Receivable | دعم اختلاف العملة |
+
+### 17.8 التدقيق والأثر (Audit & Traceability)
+
+* كل قيد JournalEntry له: `source_module`, `source_reference`, `hash_chain_prev` (ربط تجزئي لتسهيل كشف العبث).
+* قفل الفترات المالية بعد الإقفال (Period Lock) مع سجل فتح/إغلاق.
+* Export تدقيقي (JSON + CSV) باسم توقيع Hash.
+
+### 17.9 التقارير الدورية
+
+* تقرير ضريبة القيمة المضافة (ملخّص Tax Codes + صافي مستحق).
+* تقرير زكاة (معادلة وعاء + صافي زكاة مقترحة).
+* تحليل تكلفة الإنتاج لكل كيلو (تجميع أعلاف + نفوق + خدمات تشغيلية / إجمالي وزن محقق).
+
+### 17.10 خطة طرح تدريجي للمحاسبة المحلية
+
+| مرحلة | نطاق | هدف الاعتماد |
+|--------|------|--------------|
+| A | IFRS عام + VAT أساسي | Merged في بيئة Staging |
+| B | ZATCA (QR + توقيع) | Pilot عميل سعودي |
+| C | EGS Egypt Connector | Pilot عميل مصري |
+| D | Multi-Currency + FX | إطلاق عام محاسبي متقدم |
+| E | تقارير زكاة + ضرائب موسعة | الامتثال المتكامل |
+
+### 17.11 مخاطر وتخفيف
+
+| خطر | الأثر | الإجراء الوقائي |
+|------|-------|-----------------|
+| تغيّر تشريعات فجائي | إعادة عمل / تأخير | تصميم Rules قابلة للتحديث عبر DB |
+| تأخير موصل E-Invoice | تعطيل الإطلاق في دولة | اعتماد Manual Export مؤقت |
+| أخطاء احتساب VAT | التزامات قانونية | اختبارات وحدة + اختبارات ملكية (Property-based) |
+| عدم دقة أسعار الصرف | فروق تقييم خاطئة | مصدرين + آلية مصادقة Manual Override |
+
+### 17.12 مؤشرات نجاح المحاسبة المحلية
+
+* نسبة الفواتير المقبولة بدون رفض في القنوات الرسمية > 98%.
+* زمن احتساب فاتورة (Server) < 120ms.
+* زمن إغلاق فترة شهرية بعد نهاية الشهر < 2 يوم عمل.
+
+### 17.13 المهام الفورية (Next Immediate Accounting Tasks)
+
+1. تصميم جداول: `tax_profiles`, `tax_rates`, `invoice_series`, `e_invoice_submissions`.
+2. رسم مخطط Posting Engine (State Diagram) للفوترة.
+3. توليد Migration أولي للحسابات الأساسية (Chart Template).
+4. كتابة وحدة اختبار Property-based لحساب VAT (مدى معدلات 0–20%).
+5. PoC لتوليد TLV QR (ZATCA) + تخزين التوقيع.
+
+---
+
+## 18. خارطة ربط (Mapping) بين الـ Roadmap العام والتنفيذ الحالي
+
+| مجال | الوضع الحالي | المرحلة المخططة التالية | فجوة رئيسية |
+|------|-------------|--------------------------|-------------|
+| OpenAPI Core | ✅ (0.2.0) | إثراء Examples & Error Codes | توحيد أكواد أخطاء عملانية |
+| Multi-Tenancy | ✅ أساسيات | تطبيق RLS فعلي | سياسة row security |
+| Water Quality | قيد الإضافة (Spec جاهز) | Implement Service + Trends Logic | خوارزميات التحليل |
+| Accounting | مبدئي (Journal Entry Stub) | بناء Tax Engine | تصميم CoA محلي |
+| IoT Ingestion | غير منفذ | بوابة MQTT/HTTPS | أمان الجهاز |
+| AI Analytics | موثق فقط | تحديد Data Contracts | جودة البيانات |
+| E-Invoicing | غير منفذ | Adapter Interface | توقيع رقمي |
+| Mobile Offline | غير منفذ | Sync Strategy Draft | تضارب البيانات |
+
+## 19. مصفوفة مخاطر شاملة (Expanded Risk Matrix)
+
+| التصنيف | الخطر | الاحتمال | الأثر | أولوية | خطة استباقية | خطة طوارئ |
+|---------|-------|----------|-------|--------|--------------|-------------|
+| تقني | فشل اعتماد RLS | متوسط | عالي | مرتفع | اختبار مبكر + Audit Logging | fallback فلترة تطبيقية |
+| تقني | اختناق PostgreSQL (I/O) | منخفض | عالي | متوسط | فهارس + مراقبة | Sharding / Read Replicas |
+| أمان | تسرب مفتاح توقيع E-Invoice | منخفض | حرج | مرتفع | HSM/KMS + Rotation | إبطال فوري + إعادة إصدار |
+| امتثال | خطأ VAT جماعي | منخفض | عالي | مرتفع | Property Tests + مراجعة محاسب | تصحيح رجعي + إبلاغ عملاء |
+| أدائي | حمل قراءات IoT Burst | متوسط | متوسط | متوسط | Buffer + Queue | تقليص معدل المعالجة |
+| منتج | تعقيد واجهة المستخدم | متوسط | متوسط | متوسط | اختبارات UX مبكرة | تحسين سريع Iteration |
+| بيانات | Drift نماذج AI | متوسط | متوسط | متوسط | مراقبة Metrics | إعادة تدريب طارئ |
+
+## 20. قائمة تنفيذ سريعة (Actionable Sprint Backlog Extract)
+
+| رقم | المهمة | التصنيف | الجهد (نسبي) | اعتماد سابق |
+|-----|--------|---------|--------------|--------------|
+| 1 | Implement WaterQualityService (CRUD + Trends stub) | Backend | 5 | OpenAPI جاهز |
+| 2 | إضافة Migration CoA أساسي | Accounting | 3 | تصميم جدول |
+| 3 | إنشاء tax_rates & tax_profiles migrations | Accounting | 2 | 2 |
+| 4 | PoC TLV QR ZATCA (Script) | Accounting/Compliance | 3 | 3 |
+| 5 | إعداد RLS Policies (Farms, Ponds) | Security/Data | 5 | Multi-Tenancy جاهز |
+| 6 | إعداد Feature Flag Service | Platform | 2 | Core Config |
+| 7 | إضافة Unified Error Codes (ENUM) في Backend | Backend | 2 | ErrorResponse |
+| 8 | إعداد basic Device Registration Endpoint | IoT | 3 | Auth |
+| 9 | إعداد جدول fx_rates + sync job | Accounting | 4 | CoA |
+| 10 | Draft Sync Strategy للموبايل (وثيقة) | Mobile | 2 | لا شيء |
+
+ملاحظة: الجهد (1-5) تقديري نسبي للسبرنت (5 أعلى).
+
+## 21. الخطوة الختامية الحالية
+
+تم استكمال توسيع خارطة الطريق بإضافة تفاصيل الامتثال المحاسبي الإقليمي، خطة المحرك الضريبي، مراحل التدرج، والمخاطر مع باك-لوج عملي. يمكن البدء فورًا بتنفيذ البنود 1–3 و7 ضمن Sprint قريب لتسريع القيمة المحققة.
+
+إذا رغبت، أستطيع الآن إنتاج:
+
+1. مخطط قاعدة بيانات (SQL) للجداول: tax_profiles, tax_rates, invoice_series, fx_rates.
+2. Migration TypeORM أولي لهذه الجداول.
+3. Draft WaterQualityService + Module في Backend.
+
+حدد اختيارك لأتابع.

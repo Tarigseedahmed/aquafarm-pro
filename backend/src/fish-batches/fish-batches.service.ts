@@ -20,7 +20,9 @@ export class FishBatchesService {
     let pond = await this.pondRepo.findOne({ where: { id: dto.pondId, tenantId } });
     if (!pond) {
       // Backfill orphan pond (legacy)
-      const orphan = await this.pondRepo.findOne({ where: { id: dto.pondId, tenantId: null as any } });
+      const orphan = await this.pondRepo.findOne({
+        where: { id: dto.pondId, tenantId: null as any },
+      });
       if (orphan) {
         orphan.tenantId = tenantId;
         pond = await this.pondRepo.save(orphan);
@@ -48,7 +50,8 @@ export class FishBatchesService {
 
   async findAll(query: FindAllFishBatchesDto, tenantId: string) {
     const { pondId, status, search, page = 1, limit = 10 } = query;
-    const qb = this.batchRepo.createQueryBuilder('batch')
+    const qb = this.batchRepo
+      .createQueryBuilder('batch')
       .leftJoinAndSelect('batch.feedingRecords', 'feedingRecords')
       .andWhere('batch.tenantId = :tenantId', { tenantId });
 
@@ -78,7 +81,11 @@ export class FishBatchesService {
     const batch = await this.findOne(id, tenantId);
     Object.assign(batch, dto);
     // Recompute biomass if counts or avg weight changed
-    if ((dto.currentCount !== undefined || dto.averageWeight !== undefined) && batch.currentCount && batch.averageWeight) {
+    if (
+      (dto.currentCount !== undefined || dto.averageWeight !== undefined) &&
+      batch.currentCount &&
+      batch.averageWeight
+    ) {
       batch.totalBiomass = Number((batch.currentCount * Number(batch.averageWeight)).toFixed(2));
     }
     return this.batchRepo.save(batch);

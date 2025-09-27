@@ -28,7 +28,7 @@ export class PondsController {
 
   @Get()
   findAll(@Query() query: FindAllPondsDto, @Request() req) {
-    return this.pondsService.findAll(query, req.tenantId).then(res => ({
+    return this.pondsService.findAll(query, req.tenantId).then((res) => ({
       ...res,
       // Backward compatibility: old clients expected an array at root named 'ponds'
       ponds: res.data,

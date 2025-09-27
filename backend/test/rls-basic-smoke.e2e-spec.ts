@@ -23,24 +23,12 @@ const run = process.env.DB_TYPE === 'postgres';
       imports: [AppModule],
     }).compile();
     app = mod.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
-    );
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     dataSource = app.get(DataSource);
     jwt = app.get(JwtService);
-    tenantA = await seedTenantFarmUser(
-      dataSource,
-      jwt,
-      'rls-smoke-a',
-      'RLS Smoke A',
-    );
-    tenantB = await seedTenantFarmUser(
-      dataSource,
-      jwt,
-      'rls-smoke-b',
-      'RLS Smoke B',
-    );
+    tenantA = await seedTenantFarmUser(dataSource, jwt, 'rls-smoke-a', 'RLS Smoke A');
+    tenantB = await seedTenantFarmUser(dataSource, jwt, 'rls-smoke-b', 'RLS Smoke B');
   });
 
   afterAll(async () => {
@@ -57,9 +45,7 @@ const run = process.env.DB_TYPE === 'postgres';
     expect(createRes.status).toBe(201);
 
     // List ponds as tenant B => should not see that pond
-    const listRes = await request(app.getHttpServer())
-      .get('/ponds')
-      .set(buildAuthHeaders(tenantB));
+    const listRes = await request(app.getHttpServer()).get('/ponds').set(buildAuthHeaders(tenantB));
     expect(listRes.status).toBe(200);
     const ponds = listRes.body.ponds || listRes.body.data || listRes.body; // tolerate different envelope phases
     const flat = Array.isArray(ponds) ? ponds : ponds.items || ponds.data || [];

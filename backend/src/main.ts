@@ -1,8 +1,81 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RequestLoggerMiddleware } from './common/logging/request-logger.middleware';
+import { PinoLoggerService } from './common/logging/pino-logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3000);
+  app.setGlobalPrefix('api');
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  // Middlewares (order matters: correlation id first)
+  const pino = app.get(PinoLoggerService);
+  app.use(new CorrelationIdMiddleware().use);
+  // Create a single instance of the request logger middleware
+  const reqLogger = new RequestLoggerMiddleware(pino);
+  app.use(reqLogger.use.bind(reqLogger));
+  // Global error filter
+  app.useGlobalFilters(new GlobalExceptionFilter(pino));
+
+  // Swagger (development / staging only)
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('AquaFarm Pro API')
+      .setDescription(
+        'MVP endpoints for authentication, tenants, farms, ponds.\nMulti-tenancy header: X-Tenant-Id: <tenant-code-or-uuid>. This header is injected globally in the Swagger UI for convenience.',
+      )
+      .setVersion('0.1.1')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+
+    // Inject a reusable global header parameter for multi-tenancy if not already present
+    document.components ||= {};
+    document.components.parameters ||= {};
+    if (!document.components.parameters['XTenantIdHeader']) {
+      document.components.parameters['XTenantIdHeader'] = {
+        name: 'X-Tenant-Id',
+        in: 'header',
+        required: false,
+        description:
+          'Tenant code or UUID for scoping requests (set TENANT_STRICT=true to require on protected routes).',
+        schema: { type: 'string', example: 'default' },
+      } as any; // Swagger types may differ at runtime; cast to any for mutation safety
+    }
+
+    // Attach the header reference to every path & method (skip if already present)
+    for (const pathKey of Object.keys(document.paths)) {
+      const pathItem: any = (document.paths as any)[pathKey];
+      for (const method of Object.keys(pathItem)) {
+        const operationObject = pathItem[method];
+        if (!operationObject || typeof operationObject !== 'object') continue;
+        operationObject.parameters = operationObject.parameters || [];
+        const already = operationObject.parameters.some(
+          (p: any) => p.name === 'X-Tenant-Id' || p['$ref']?.endsWith('XTenantIdHeader'),
+        );
+        if (!already) {
+          operationObject.parameters.push({ $ref: '#/components/parameters/XTenantIdHeader' });
+        }
+      }
+    }
+    SwaggerModule.setup('docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+    pino.info({ event: 'swagger.enabled', path: '/docs' }, 'Swagger UI enabled');
+  }
+
+  const port = process.env.PORT ?? 3001;
+  await app.listen(port);
+  console.log(`ðŸš€ Application is running on: http://localhost:${port}/api`);
+  console.log(`ðŸ“Š Health check: http://localhost:${port}/api/health`);
 }
 bootstrap();

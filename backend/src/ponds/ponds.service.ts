@@ -21,11 +21,7 @@ export class PondsService {
     private readonly logger: PinoLoggerService,
   ) {}
 
-  async create(
-    createPondDto: CreatePondDto,
-    currentUser: User,
-    tenantId: string,
-  ): Promise<Pond> {
+  async create(createPondDto: CreatePondDto, currentUser: User, tenantId: string): Promise<Pond> {
     let resolvedTenantId = tenantId;
     if (tenantId && !/^[0-9a-fA-F-]{36}$/.test(tenantId)) {
       const tenant = await this.tenantRepo.findOne({
@@ -34,7 +30,10 @@ export class PondsService {
       resolvedTenantId = tenant?.id;
     }
     if (tenantId && !resolvedTenantId) {
-      throw new NotFoundException({ message: 'Tenant not found', code: ErrorCode.TENANT_NOT_FOUND });
+      throw new NotFoundException({
+        message: 'Tenant not found',
+        code: ErrorCode.TENANT_NOT_FOUND,
+      });
     }
 
     // Find farm respecting tenant; backfill legacy null tenant farms if matches
@@ -66,14 +65,14 @@ export class PondsService {
       tenantId: resolvedTenantId,
     });
     const saved = await this.pondRepository.save(pond);
-    this.logger.info({ event: 'pond.created', pondId: saved.id, farmId: saved.farmId, tenantId }, 'Pond created');
+    this.logger.info(
+      { event: 'pond.created', pondId: saved.id, farmId: saved.farmId, tenantId },
+      'Pond created',
+    );
     return saved;
   }
 
-  async findAll(
-    queryDto: FindAllPondsDto,
-    tenantId: string,
-  ): Promise<PaginatedResult<Pond>> {
+  async findAll(queryDto: FindAllPondsDto, tenantId: string): Promise<PaginatedResult<Pond>> {
     const { farmId, status, search, page = 1, limit = 10 } = queryDto;
     const qb = this.pondRepository
       .createQueryBuilder('pond')
@@ -105,11 +104,7 @@ export class PondsService {
     return pond;
   }
 
-  async update(
-    id: string,
-    updatePondDto: UpdatePondDto,
-    tenantId: string,
-  ): Promise<Pond> {
+  async update(id: string, updatePondDto: UpdatePondDto, tenantId: string): Promise<Pond> {
     const pond = await this.findOne(id, tenantId);
     const updateData = { ...updatePondDto };
     if ((updateData.area || updateData.depth) && !updateData.volume) {
@@ -131,7 +126,7 @@ export class PondsService {
     return [
       {
         id: '1',
-        name: 'حوض البلطي الرئيسي',
+        name: 'Ø­ÙˆØ¶ Ø§Ù„Ø¨Ù„Ø·ÙŠ Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠ',
         farmId: 'mock-farm-1',
         area: 2000,
         depth: 2.5,
@@ -141,11 +136,11 @@ export class PondsService {
         status: 'active',
         shape: 'rectangular',
         equipment: ['aerator', 'filter', 'temperature_sensor'],
-        farm: { name: 'مزرعة البحر الأحمر' },
+        farm: { name: 'Ù…Ø²Ø±Ø¹Ø© Ø§Ù„Ø¨Ø­Ø± Ø§Ù„Ø£Ø­Ù…Ø±' },
       },
       {
         id: '2',
-        name: 'حوض الحضانة',
+        name: 'Ø­ÙˆØ¶ Ø§Ù„Ø­Ø¶Ø§Ù†Ø©',
         farmId: 'mock-farm-1',
         area: 800,
         depth: 1.5,
@@ -155,7 +150,7 @@ export class PondsService {
         status: 'active',
         shape: 'circular',
         equipment: ['heater', 'filter'],
-        farm: { name: 'مزرعة البحر الأحمر' },
+        farm: { name: 'Ù…Ø²Ø±Ø¹Ø© Ø§Ù„Ø¨Ø­Ø± Ø§Ù„Ø£Ø­Ù…Ø±' },
       },
     ];
   }

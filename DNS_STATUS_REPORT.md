@@ -81,7 +81,6 @@ Should show: `ns1.hostinger.com`, `ns2.hostinger.com`, etc.
 2. **Go** to Domains → aquafarm.cloud → DNS Zone
 3. **Add** A records pointing to VPS IP: 72.60.187.58
 
-
 ```bash
 nslookup aquafarm.cloud
 ```
@@ -144,7 +143,6 @@ ping aquafarm.cloud
   - <https://api.aquafarm.cloud>
   - <https://admin.aquafarm.cloud>
 
- 
 ---
 
 ## 🔧 Alternative: Temporary Testing
@@ -205,7 +203,6 @@ Add to your local hosts file:
 
 - **Use** online DNS tools for verification
 - **Wait** full propagation time before troubleshooting
-
 
 - **Test** with IP address as backup
 

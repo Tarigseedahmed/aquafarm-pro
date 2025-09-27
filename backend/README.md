@@ -107,7 +107,7 @@ X-Tenant-Id: <tenant-id>
 Public (non-sensitive) routes may omit it and a fallback (`DEFAULT_TENANT_CODE` or `default`) is used for logging context only. For data‑bearing endpoints always set the header explicitly to avoid future strict-mode rejections.
 
 Current resolution pipeline:
- 
+
 1. Interceptor reads `X-Tenant-Id` (or alias headers) → resolves code to UUID.
 2. If absent and route is public → fallback code used (not recommended for mutations).
 3. Guards & services enforce tenant UUID scoping at repository queries.
@@ -135,7 +135,6 @@ Swagger UI automatically injects a reusable header parameter (X-Tenant-Id) for e
 ### Strict Mode
 
 Set `TENANT_STRICT=true` to force non-public routes to REQUIRE an `X-Tenant-Id` header. Public routes (`@Public`) keep using fallback.
-
 
 ### Telemetry & Logging
 
@@ -234,7 +233,6 @@ Postgres RLS harness (only runs under `DB_TYPE=postgres`): `rls-postgres.e2e-spe
 - Redis caching, WebSocket notifications.
 
 ## Deployment (Outline)
-
 
 1. Build Docker image (CI workflow provided).
 1. Run migrations on startup job/container.

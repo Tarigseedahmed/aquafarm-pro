@@ -61,26 +61,22 @@ describe('Notifications Tenant Isolation (e2e)', () => {
     const a = seeded['tenant-a'];
     const b = seeded['tenant-b'];
 
-  await createNotification('tenant-a');
-  await createNotification('tenant-b');
+    await createNotification('tenant-a');
+    await createNotification('tenant-b');
 
-    const listA = await request(app.getHttpServer())
-      .get('/notifications')
-  .set(authHeaders(a));
+    const listA = await request(app.getHttpServer()).get('/notifications').set(authHeaders(a));
     expect(listA.status).toBe(200);
-  const notifA = listA.body.notifications || listA.body.data || listA.body;
-  expect(Array.isArray(notifA)).toBe(true);
-  expect(notifA.every((n: any) => n.tenantId === a.tenantId)).toBe(true);
-  expect(notifA.some((n: any) => n.message.includes('tenant-b'))).toBe(false);
+    const notifA = listA.body.notifications || listA.body.data || listA.body;
+    expect(Array.isArray(notifA)).toBe(true);
+    expect(notifA.every((n: any) => n.tenantId === a.tenantId)).toBe(true);
+    expect(notifA.some((n: any) => n.message.includes('tenant-b'))).toBe(false);
 
-    const listB = await request(app.getHttpServer())
-      .get('/notifications')
-  .set(authHeaders(b));
+    const listB = await request(app.getHttpServer()).get('/notifications').set(authHeaders(b));
     expect(listB.status).toBe(200);
-  const notifB = listB.body.notifications || listB.body.data || listB.body;
-  expect(Array.isArray(notifB)).toBe(true);
-  expect(notifB.every((n: any) => n.tenantId === b.tenantId)).toBe(true);
-  expect(notifB.some((n: any) => n.message.includes('tenant-a'))).toBe(false);
+    const notifB = listB.body.notifications || listB.body.data || listB.body;
+    expect(Array.isArray(notifB)).toBe(true);
+    expect(notifB.every((n: any) => n.tenantId === b.tenantId)).toBe(true);
+    expect(notifB.some((n: any) => n.message.includes('tenant-a'))).toBe(false);
   });
 
   it('unread count is tenant + user specific', async () => {
@@ -97,14 +93,14 @@ describe('Notifications Tenant Isolation (e2e)', () => {
 
     const unreadA = await request(app.getHttpServer())
       .get('/notifications/unread-count')
-  .set(authHeaders(a));
+      .set(authHeaders(a));
     expect(unreadA.status).toBe(200);
     expect(unreadA.body).toHaveProperty('count');
     expect(unreadA.body.count).toBeGreaterThanOrEqual(2);
 
     const unreadB = await request(app.getHttpServer())
       .get('/notifications/unread-count')
-  .set(authHeaders(b));
+      .set(authHeaders(b));
     expect(unreadB.status).toBe(200);
     expect(unreadB.body.count).toBeGreaterThanOrEqual(1);
   });

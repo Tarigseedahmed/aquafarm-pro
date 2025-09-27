@@ -39,9 +39,7 @@ const shouldRun = process.env.DB_TYPE === 'postgres';
       .set(buildAuthHeaders(tenantA))
       .send({ name: 'RLSPond A1', farmId: tenantA.farmId, area: 50, depth: 1.2, maxCapacity: 200 });
     expect(create.status).toBe(201);
-    const listB = await request(app.getHttpServer())
-      .get('/ponds')
-      .set(buildAuthHeaders(tenantB));
+    const listB = await request(app.getHttpServer()).get('/ponds').set(buildAuthHeaders(tenantB));
     expect(listB.status).toBe(200);
     const pondsB = listB.body.ponds || listB.body;
     expect(pondsB.some((p: any) => p.name === 'RLSPond A1')).toBeFalsy();

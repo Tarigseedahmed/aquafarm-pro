@@ -1,10 +1,16 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { getCorrelationId } from '../correlation/correlation-context';
+import { PinoLoggerService } from './pino-logger.service';
 
 @Injectable()
 export class RequestLoggerMiddleware implements NestMiddleware {
-  use(req: Request & { correlationId?: string; tenantId?: string }, res: Response, next: NextFunction) {
+  constructor(@Optional() private pino?: PinoLoggerService) {}
+  use(
+    req: Request & { correlationId?: string; tenantId?: string },
+    res: Response,
+    next: NextFunction,
+  ) {
     const start = process.hrtime.bigint();
     const { method, originalUrl } = req;
     const cid = req.correlationId;
@@ -27,8 +33,12 @@ export class RequestLoggerMiddleware implements NestMiddleware {
         contentLength: res.getHeader('content-length'),
         ts: new Date().toISOString(),
       };
-      // eslint-disable-next-line no-console
-      console.log(JSON.stringify(log));
+      if (this.pino) {
+        (this.pino as any).info(log);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log(JSON.stringify(log));
+      }
     });
     next();
   }
