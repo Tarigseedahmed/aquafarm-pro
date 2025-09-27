@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
@@ -19,10 +19,9 @@ describe('Feeding Records Tenant Isolation (e2e)', () => {
     process.env.MIGRATIONS_RUN = 'true';
     process.env.JWT_SECRET = 'test-secret';
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const { bootstrapTestApp } = await import('./bootstrap-test-app');
+  app = await bootstrapTestApp(moduleRef);
 
     dataSource = app.get(DataSource);
     jwtService = app.get(JwtService);
@@ -33,7 +32,7 @@ describe('Feeding Records Tenant Isolation (e2e)', () => {
     for (const code of ['tenant-a', 'tenant-b']) {
       const rec = seeded[code];
       const res = await request(app.getHttpServer())
-        .post('/fish-batches')
+        .post('/api/fish-batches')
         .set(buildAuthHeaders(rec))
         .send({
           batchNumber: code === 'tenant-a' ? 'A-B1' : 'B-B1',
@@ -61,31 +60,37 @@ describe('Feeding Records Tenant Isolation (e2e)', () => {
     const a = seeded['tenant-a'];
     const b = seeded['tenant-b'];
 
-    const feedA = await request(app.getHttpServer()).post('/feeding-records').set(auth(a)).send({
-      fishBatchId: batches['tenant-a'],
-      feedAmount: 5.5,
-      feedType: 'Grower',
-      feedingTime: '08:00:00',
-    });
+    const feedA = await request(app.getHttpServer())
+      .post('/api/feeding-records')
+      .set(auth(a))
+      .send({
+        fishBatchId: batches['tenant-a'],
+        feedAmount: 5.5,
+        feedType: 'Grower',
+        feedingTime: '08:00:00',
+      });
     expect(feedA.status).toBe(201);
 
-    const feedB = await request(app.getHttpServer()).post('/feeding-records').set(auth(b)).send({
-      fishBatchId: batches['tenant-b'],
-      feedAmount: 4.1,
-      feedType: 'Starter',
-      feedingTime: '09:00:00',
-    });
+    const feedB = await request(app.getHttpServer())
+      .post('/api/feeding-records')
+      .set(auth(b))
+      .send({
+        fishBatchId: batches['tenant-b'],
+        feedAmount: 4.1,
+        feedType: 'Starter',
+        feedingTime: '09:00:00',
+      });
     expect(feedB.status).toBe(201);
 
-    const listA = await request(app.getHttpServer()).get('/feeding-records').set(auth(a));
+  const listA = await request(app.getHttpServer()).get('/api/feeding-records').set(auth(a));
     expect(listA.status).toBe(200);
-    const recsA = listA.body.records || listA.body;
+  const recsA = listA.body.data || listA.body.records || listA.body;
     expect(recsA.some((r: any) => r.fishBatchId === batches['tenant-a'])).toBeTruthy();
     expect(recsA.some((r: any) => r.fishBatchId === batches['tenant-b'])).toBeFalsy();
 
-    const listB = await request(app.getHttpServer()).get('/feeding-records').set(auth(b));
+  const listB = await request(app.getHttpServer()).get('/api/feeding-records').set(auth(b));
     expect(listB.status).toBe(200);
-    const recsB = listB.body.records || listB.body;
+  const recsB = listB.body.data || listB.body.records || listB.body;
     expect(recsB.some((r: any) => r.fishBatchId === batches['tenant-b'])).toBeTruthy();
     expect(recsB.some((r: any) => r.fishBatchId === batches['tenant-a'])).toBeFalsy();
   });

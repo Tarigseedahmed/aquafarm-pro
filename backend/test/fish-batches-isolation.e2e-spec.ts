@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
@@ -18,10 +18,9 @@ describe('Fish Batches Tenant Isolation (e2e)', () => {
     process.env.MIGRATIONS_RUN = 'true';
     process.env.JWT_SECRET = 'test-secret';
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const { bootstrapTestApp } = await import('./bootstrap-test-app');
+  app = await bootstrapTestApp(moduleRef);
     dataSource = app.get(DataSource);
     jwtService = app.get(JwtService);
     seeded['tenant-a'] = await seedTenantWithPond(dataSource, jwtService, 'tenant-a', 'Tenant A');
@@ -39,7 +38,7 @@ describe('Fish Batches Tenant Isolation (e2e)', () => {
     const a = seeded['tenant-a'];
     const b = seeded['tenant-b'];
 
-    const createA = await request(app.getHttpServer()).post('/fish-batches').set(auth(a)).send({
+  const createA = await request(app.getHttpServer()).post('/api/fish-batches').set(auth(a)).send({
       batchNumber: 'A-BATCH-1',
       species: 'Tilapia',
       initialCount: 1000,
@@ -48,7 +47,7 @@ describe('Fish Batches Tenant Isolation (e2e)', () => {
     });
     expect(createA.status).toBe(201);
 
-    const createB = await request(app.getHttpServer()).post('/fish-batches').set(auth(b)).send({
+  const createB = await request(app.getHttpServer()).post('/api/fish-batches').set(auth(b)).send({
       batchNumber: 'B-BATCH-1',
       species: 'Catfish',
       initialCount: 800,
@@ -57,15 +56,15 @@ describe('Fish Batches Tenant Isolation (e2e)', () => {
     });
     expect(createB.status).toBe(201);
 
-    const listA = await request(app.getHttpServer()).get('/fish-batches').set(auth(a));
+  const listA = await request(app.getHttpServer()).get('/api/fish-batches').set(auth(a));
     expect(listA.status).toBe(200);
-    const batchesA = listA.body.batches || listA.body;
+  const batchesA = listA.body.data || listA.body.batches || listA.body;
     expect(batchesA.some((b: any) => b.batchNumber === 'A-BATCH-1')).toBeTruthy();
     expect(batchesA.some((b: any) => b.batchNumber === 'B-BATCH-1')).toBeFalsy();
 
-    const listB = await request(app.getHttpServer()).get('/fish-batches').set(auth(b));
+  const listB = await request(app.getHttpServer()).get('/api/fish-batches').set(auth(b));
     expect(listB.status).toBe(200);
-    const batchesB = listB.body.batches || listB.body;
+  const batchesB = listB.body.data || listB.body.batches || listB.body;
     expect(batchesB.some((b: any) => b.batchNumber === 'B-BATCH-1')).toBeTruthy();
     expect(batchesB.some((b: any) => b.batchNumber === 'A-BATCH-1')).toBeFalsy();
   });

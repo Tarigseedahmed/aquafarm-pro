@@ -1,6 +1,6 @@
 import * as request from 'supertest';
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { AppModule } from '../src/app.module';
 
 async function register(app: INestApplication, email: string) {
@@ -18,11 +18,9 @@ describe('Farm stats tenant isolation', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const { bootstrapTestApp } = await import('./bootstrap-test-app');
+  app = await bootstrapTestApp(moduleRef);
   });
 
   afterAll(async () => {
