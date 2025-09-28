@@ -351,6 +351,7 @@ Metrics added (Prometheus):
 | `http_5xx_errors_total` | Counter | route, status | Count of 5xx responses (emitted alongside duration recording). |
 | `rate_limit_exceeded_total` | Counter | route | Requests rejected by rate limiting (normalized route). |
 | `forbidden_requests_total` | Counter | route, reason | 403 responses. `reason` ∈ {`missing_permissions`, `ownership`, `forbidden`, custom}. Incremented centrally via `throwForbidden`. |
+| `unauthorized_requests_total` | Counter | route | 401 responses (missing/invalid token) captured in auth guard. |
 | `sse_clients_total` | Counter | (none) | Cumulative SSE client connections opened. |
 | `active_sse_connections` | Gauge | (none) | Current open SSE notification streams. |
 | `notifications_emitted_total` | Counter | (none) | Notifications created (emitted). |

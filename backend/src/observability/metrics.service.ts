@@ -20,6 +20,7 @@ export class MetricsService {
   private http5xxErrors: Counter;
   private httpRequestDuration: Histogram;
   private forbiddenRequests: Counter;
+  private unauthorizedRequests: Counter;
 
   private initialized = false;
   // Process-wide guard so we only collect default metrics once even if multiple app instances
@@ -103,6 +104,11 @@ export class MetricsService {
       'Number of forbidden (403) responses with reason label',
       ['route', 'reason'] as const,
     );
+    this.unauthorizedRequests = ensureCounter(
+      'unauthorized_requests_total',
+      'Number of unauthorized (401) responses',
+      ['route'] as const,
+    );
 
     this.initialized = true;
   }
@@ -162,5 +168,11 @@ export class MetricsService {
     this.ensureInitialized();
     const normRoute = normalizeRoute(route);
     this.forbiddenRequests.inc({ route: normRoute, reason });
+  }
+
+  incUnauthorized(route: string) {
+    this.ensureInitialized();
+    const normRoute = normalizeRoute(route);
+    this.unauthorizedRequests.inc({ route: normRoute });
   }
 }
