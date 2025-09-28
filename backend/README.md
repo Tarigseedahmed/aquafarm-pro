@@ -386,6 +386,17 @@ Notes:
 1. `reason` automatically inferred: if `missing` contains `ownership` → `ownership`, else if `missing` non-empty → `missing_permissions`, otherwise fallback `forbidden` (or explicit value if supplied).
 2. Metrics cardinality protection: dynamic UUID / long hex segments normalized to `:id` in `route` label.
 3. All code paths producing 403 SHOULD invoke `throwForbidden` to ensure consistent schema + metrics.
+4. Route normalization heuristics (applied to `route` label across metrics):
+
+  - Strip query string parameters.
+  - Collapse duplicate slashes.
+  - Replace UUID v4 values with `:id`.
+  - Replace 24-char hex (Mongo-style) tokens with `:id`.
+  - Replace hex tokens length ≥16 with `:id`.
+  - Replace purely numeric tokens length ≥4 with `:id` (keeps short enumerations like `/v1` intact).
+  - Trim trailing slash except for root.
+
+  This keeps label cardinality low for Prometheus while retaining stable route shapes for dashboards.
 
 ## Testing
 
