@@ -635,7 +635,8 @@ components:
       name: page
       in: query
       required: false
-      description: Page number (1-based)
+      description: |
+        Page number (1-based). If the requested page exceeds the last page, the server clamps it to the last available page and returns that page's meta (no error raised).
       schema: { type: integer, minimum: 1, default: 1 }
     PondIdQuery:
       name: pondId
@@ -647,8 +648,9 @@ components:
       name: limit
       in: query
       required: false
-      description: Max number of readings to return (default 50)
-      schema: { type: integer, minimum: 1, maximum: 500 }
+      description: |
+        Page size (items per page). Values > 100 are capped to 100. Values < 1 are normalized to 1. Default varies by endpoint (commonly 25).
+      schema: { type: integer, minimum: 1, maximum: 100 }
     DaysQuery:
       name: days
       in: query

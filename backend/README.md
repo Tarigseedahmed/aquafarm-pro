@@ -253,7 +253,42 @@ Security notes:
 
 ## Environment
 
-See `.env.example` for annotated configuration (SQLite vs PostgreSQL, multi-tenancy defaults, JWT settings).
+See `.env.example` for annotated configuration (SQLite vs PostgreSQL, multi-tenancy defaults, JWT settings, Redis optional integration).
+
+### Redis (Optional)
+
+Redis enables horizontal scaling for real-time notifications (Pub/Sub) and future caching layers. If `REDIS_URL` is not set the system falls back to in-process EventEmitter only.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `REDIS_URL` | `redis://localhost:6379` (commented) | Connection string. Presence enables Redis features. |
+
+Health endpoint `/health` now reports:
+
+```json
+{
+  "status": "ok",
+  "service": "AquaFarm Pro Backend",
+  "redis": { "enabled": true }
+}
+```
+
+Notifications publish model:
+
+1. Local creation emits event via in-process EventEmitter immediately.
+2. If Redis enabled, the notification (with transient `__origin` UUID) is also published to channel `notifications.created`.
+3. Each instance subscribes; on receiving a message it re-emits to local listeners unless `__origin` matches its own instance id (prevents echo).
+
+This design keeps latency low for the originating instance while enabling cross-instance fan-out.
+
+Metrics added (Prometheus):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total{method,status}` | Counter | Total HTTP requests by method & status. |
+| `sse_clients_total` | Counter | Cumulative SSE connections opened. |
+| `active_sse_connections` | Gauge | Current open SSE notification streams. |
+| `notifications_emitted_total` | Counter | Notifications created (emitted). |
 
 ## Testing
 

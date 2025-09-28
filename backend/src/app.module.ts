@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
@@ -20,15 +22,27 @@ import { FishBatch } from './fish-batches/entities/fish-batch.entity';
 import { FeedingRecord } from './fish-batches/entities/feeding-record.entity';
 import { Notification } from './notifications/entities/notification.entity';
 import { Tenant } from './tenancy/entities/tenant.entity';
+import { MetricsModule } from './observability/metrics.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: 'global',
+          ttl: 60, // 60 second window
+          limit: 100, // default: 100 requests / window / IP
+        },
+      ],
+    }),
     LoggingModule,
     TypeOrmModule.forRootAsync({
       useFactory: () => {
         const isPostgres = process.env.DB_TYPE === 'postgres';
         const isTest = process.env.NODE_ENV === 'test';
+        const disableMigrationsInTest = isTest && !isPostgres;
         return {
           type: (isPostgres ? 'postgres' : 'sqlite') as any,
           ...(isPostgres
@@ -58,11 +72,13 @@ import { Tenant } from './tenancy/entities/tenant.entity';
           synchronize: isTest ? !isPostgres : false,
           dropSchema: isTest && !isPostgres,
           logging: process.env.DB_LOG === 'true' && !isTest,
-          migrations: [
-            __filename.endsWith('.ts')
-              ? 'src/database/migrations/*.ts'
-              : 'dist/database/migrations/*.js',
-          ],
+          migrations: disableMigrationsInTest
+            ? []
+            : [
+                __filename.endsWith('.ts')
+                  ? 'src/database/migrations/*.ts'
+                  : 'dist/database/migrations/*.js',
+              ],
           migrationsRun: isPostgres && (process.env.MIGRATIONS_RUN === 'true' || isTest),
         };
       },
@@ -76,7 +92,10 @@ import { Tenant } from './tenancy/entities/tenant.entity';
     FishBatchesModule,
     FeedingRecordsModule,
     TenancyModule,
+    MetricsModule,
+    RedisModule,
   ],
   controllers: [AppController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

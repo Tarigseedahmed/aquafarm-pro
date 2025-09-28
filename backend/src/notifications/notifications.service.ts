@@ -1,16 +1,37 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { MetricsService } from '../observability/metrics.service';
+import { RedisService } from '../redis/redis.service';
 import { EventEmitter } from 'events';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   constructor(
     @InjectRepository(Notification)
     private notificationsRepository: Repository<Notification>,
-    private eventEmitter: EventEmitter = new EventEmitter(),
-  ) {}
+  @Inject('NOTIFICATIONS_EVENT_EMITTER') private eventEmitter: EventEmitter,
+  @Optional() private readonly metrics?: MetricsService,
+  @Optional() private readonly redis?: RedisService,
+  ) {
+    this.instanceId = uuidv4();
+  }
+
+  private instanceId: string;
+
+  async onModuleInit() {
+    // Subscribe to Redis notifications if enabled for cross-instance delivery
+    if (this.redis?.isEnabled()) {
+      await this.redis.subscribe('notifications.created', (payload: any) => {
+        if (!payload) return;
+        // Ignore events we originated locally
+        if (payload.__origin === this.instanceId) return;
+        this.eventEmitter.emit('notification.created', payload);
+      });
+    }
+  }
 
   // Allow external subscribers (e.g., controller SSE handler) to listen for new notifications.
   onNewNotification(listener: (n: Notification) => void) {
@@ -30,6 +51,12 @@ export class NotificationsService {
     const saved = await this.notificationsRepository.save(notification);
     // Emit event for SSE/WebSocket consumers
     this.eventEmitter.emit('notification.created', saved);
+    this.metrics?.incNotification();
+    // Publish to Redis channel if Redis is enabled for horizontal scalability (future subscribers)
+    if (this.redis?.isEnabled()) {
+      const outbound = { ...saved, __origin: this.instanceId };
+      this.redis.publish('notifications.created', outbound).catch(() => {});
+    }
     return saved;
   }
 

@@ -20,7 +20,12 @@ export class PaginationInterceptor implements NestInterceptor {
         }
         if (body && typeof body === 'object' && Array.isArray(body.items)) {
           const total = typeof body.total === 'number' ? body.total : body.items.length;
-          const meta = buildMeta(total, page, limit);
+          const metaBase = buildMeta(total, page, limit);
+          const meta = {
+            ...metaBase,
+            hasNextPage: metaBase.hasNext,
+            hasPreviousPage: metaBase.hasPrev,
+          };
           const legacyWrapper = Object.keys(body).reduce(
             (acc, k) => {
               if (k !== 'items' && k !== 'total') acc[k] = (body as any)[k];
@@ -32,8 +37,15 @@ export class PaginationInterceptor implements NestInterceptor {
         }
         if (Array.isArray(body)) {
           const total = body.length;
-          const meta: PaginationMeta = buildMeta(total, 1, total || 1);
-          return { data: body, meta };
+          const metaRaw: PaginationMeta = buildMeta(total, 1, total || 1);
+          return {
+            data: body,
+            meta: {
+              ...metaRaw,
+              hasNextPage: metaRaw.hasNext,
+              hasPreviousPage: metaRaw.hasPrev,
+            },
+          };
         }
         return body;
       }),

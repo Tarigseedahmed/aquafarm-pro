@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { MetricsService } from './observability/metrics.service';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RequestLoggerMiddleware } from './common/logging/request-logger.middleware';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
@@ -25,7 +26,8 @@ async function bootstrap() {
   const reqLogger = new RequestLoggerMiddleware(pino);
   app.use(reqLogger.use.bind(reqLogger));
   // Global error filter
-  app.useGlobalFilters(new GlobalExceptionFilter(pino));
+  const metrics = app.get(MetricsService);
+  app.useGlobalFilters(new GlobalExceptionFilter(pino as any, metrics));
   // Global pagination interceptor (idempotent wrapping for list responses)
   app.useGlobalInterceptors(new PaginationInterceptor());
 
@@ -76,9 +78,23 @@ async function bootstrap() {
     pino.info({ event: 'swagger.enabled', path: '/docs' }, 'Swagger UI enabled');
   }
 
+  // Metrics request counter (middleware) if module loaded
+  if (metrics) {
+    app.use((req, res, next) => {
+      res.on('finish', () => {
+        try {
+          metrics.incRequest(req.method, res.statusCode);
+        } catch {
+          /* swallow */
+        }
+      });
+      next();
+    });
+  }
+
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
-  console.log(`ðŸš€ Application is running on: http://localhost:${port}/api`);
-  console.log(`ðŸ“Š Health check: http://localhost:${port}/api/health`);
+  console.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  console.log(`📘 Health check: http://localhost:${port}/api/health`);
 }
 bootstrap();

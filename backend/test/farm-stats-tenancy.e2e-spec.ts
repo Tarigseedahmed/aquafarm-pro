@@ -18,9 +18,9 @@ describe('Farm stats tenant isolation', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const { bootstrapTestApp } = await import('./bootstrap-test-app');
-  app = await bootstrapTestApp(moduleRef);
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const { bootstrapTestApp } = await import('./bootstrap-test-app');
+    app = await bootstrapTestApp(moduleRef);
   });
 
   afterAll(async () => {

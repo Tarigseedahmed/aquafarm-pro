@@ -12,8 +12,6 @@ export class AddCompositeNotificationIndex1758883000000 implements MigrationInte
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS IDX_notifications_tenant_user_isRead_createdAt`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS IDX_notifications_tenant_user_isRead_createdAt`);
   }
 }

@@ -4,6 +4,7 @@ import { GlobalExceptionFilter } from '../src/common/filters/global-exception.fi
 import { PaginationInterceptor } from '../src/common/pagination/pagination.interceptor';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { PinoLoggerService } from '../src/common/logging/pino-logger.service';
+import { MetricsService } from '../src/observability/metrics.service';
 
 // Creates an application instance mirroring main.ts bootstrap logic for e2e tests.
 export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<INestApplication> {
@@ -19,7 +20,11 @@ export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<IN
   try {
     pino = app.get(PinoLoggerService);
   } catch {}
-  app.useGlobalFilters(new GlobalExceptionFilter(pino as any));
+  let metrics: MetricsService | undefined;
+  try {
+    metrics = app.get(MetricsService);
+  } catch {}
+  app.useGlobalFilters(new GlobalExceptionFilter(pino as any, metrics));
   app.useGlobalInterceptors(new PaginationInterceptor());
 
   const config = new DocumentBuilder()
@@ -58,6 +63,18 @@ export async function bootstrapTestApp(moduleFixture: TestingModule): Promise<IN
   }
 
   SwaggerModule.setup('docs', app, document, { swaggerOptions: { persistAuthorization: true } });
+
+  // Request metrics middleware (increment counter on response finish)
+  if (metrics) {
+    app.use((req, res, next) => {
+      res.on('finish', () => {
+        try {
+          metrics!.incRequest(req.method, res.statusCode);
+        } catch {}
+      });
+      next();
+    });
+  }
 
   await app.init();
   return app;

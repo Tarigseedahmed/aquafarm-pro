@@ -32,7 +32,10 @@ describe('PaginationInterceptor', () => {
 
   it('wraps {items,total} respecting query page & limit', (done) => {
     const ctx = createCtx({ page: '3', limit: '40' });
-    const handler = createHandler({ items: new Array(5).fill(0).map((_, i) => ({ i })), total: 123 });
+    const handler = createHandler({
+      items: new Array(5).fill(0).map((_, i) => ({ i })),
+      total: 123,
+    });
     interceptor.intercept(ctx, handler).subscribe((res) => {
       expect(res.data).toHaveLength(5);
       expect(res.meta.total).toBe(123);

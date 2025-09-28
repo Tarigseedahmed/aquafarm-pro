@@ -12,18 +12,14 @@ import {
   Res,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { MetricsService } from '../observability/metrics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiQuery,
-  ApiOkResponse,
-  ApiBody,
-  ApiProperty,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBody, ApiProperty } from '@nestjs/swagger';
 import { IsArray, ArrayNotEmpty, IsUUID } from 'class-validator';
 import { Response } from 'express';
 import { ApiProduces, ApiResponse } from '@nestjs/swagger';
+import { ApiPaginatedResponse } from '../common/pagination/pagination.decorator';
+import { NotificationDto } from './dto/notification.dto';
 
 export class BatchMarkReadDto {
   @ApiProperty({ type: 'array', items: { type: 'string', format: 'uuid' } })
@@ -35,31 +31,15 @@ export class BatchMarkReadDto {
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly metrics?: MetricsService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get()
   @ApiOperation({ summary: 'List notifications for current user (paginated)' })
-  @ApiQuery({ name: 'limit', required: false, schema: { default: 50 } })
-  @ApiQuery({ name: 'page', required: false, schema: { default: 1 } })
-  @ApiOkResponse({
-    description: 'Paginated notifications envelope',
-    schema: {
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: { $ref: '#/components/schemas/Notification' } },
-        meta: {
-          type: 'object',
-          properties: {
-            page: { type: 'number' },
-            limit: { type: 'number' },
-            total: { type: 'number' },
-            totalPages: { type: 'number' },
-          },
-        },
-      },
-    },
-  })
+  @ApiPaginatedResponse(NotificationDto)
   findAll(@Request() req, @Query('limit') limit?: string, @Query('page') page?: string) {
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const pageNum = page ? parseInt(page, 10) : 1;
@@ -109,6 +89,9 @@ export class NotificationsController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
+    // Count new SSE connection (accumulative)
+    this.metrics?.incSseClient();
+
     const listener = (notif: any) => {
       if (notif.tenantId !== req.tenantId || notif.userId !== req.user?.id) return;
       res.write(`event: notification\n`);
@@ -125,6 +108,7 @@ export class NotificationsController {
       clearInterval(ping);
       this.notificationsService.offNewNotification(listener);
       res.end();
+      this.metrics?.decSseClient?.();
     });
   }
 

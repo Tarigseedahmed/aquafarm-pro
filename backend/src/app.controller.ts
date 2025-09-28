@@ -1,9 +1,11 @@
 import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { RedisService } from './redis/redis.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { Public } from './common/decorators/public.decorator';
 
 @Controller()
 export class AppController {
+  constructor(private readonly redis: RedisService) {}
   @Public()
   @Get()
   getHello(): string {
@@ -17,6 +19,9 @@ export class AppController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       service: 'AquaFarm Pro Backend',
+      redis: {
+        enabled: this.redis?.isEnabled() || false,
+      },
     };
   }
 
