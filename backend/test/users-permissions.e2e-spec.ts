@@ -67,4 +67,53 @@ describe('Users permissions (e2e)', () => {
       .send({ name: 'No', email: 'no@example.com', password: 'Password123!' });
     expect(viewerCreate.status).toBe(403);
   });
+
+  it('non-admin user cannot update or delete another user but can update self', async () => {
+    const adminToken = await registerAndLogin(app, 'admin-obj@example.com', 'admin');
+    const userAToken = await registerAndLogin(app, 'user-a@example.com', 'user');
+    const userBToken = await registerAndLogin(app, 'user-b@example.com', 'user');
+
+    // Admin creates another user (C) to operate on
+    const createC = await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'User C', email: 'user-c@example.com', password: 'Password123!' });
+    expect(createC.status).toBe(201);
+    const userCId = createC.body.id;
+
+    // Get self profile for user A to know its id
+    const selfA = await request(app.getHttpServer())
+      .get('/api/users/me/profile')
+      .set('Authorization', `Bearer ${userAToken}`);
+    expect(selfA.status).toBe(200);
+    const userAId = selfA.body.id;
+
+    // User A updates self successfully
+    const updateSelf = await request(app.getHttpServer())
+      .patch(`/api/users/${userAId}`)
+      .set('Authorization', `Bearer ${userAToken}`)
+      .send({ name: 'User A Updated' });
+    expect(updateSelf.status).toBe(200);
+
+    // User A tries to update user C -> forbidden
+    const updateOther = await request(app.getHttpServer())
+      .patch(`/api/users/${userCId}`)
+      .set('Authorization', `Bearer ${userAToken}`)
+      .send({ name: 'Hack' });
+    expect(updateOther.status).toBe(403);
+    expect(updateOther.body.missing || []).toContain('ownership');
+
+    // User B tries to delete user C -> forbidden
+    const deleteOther = await request(app.getHttpServer())
+      .delete(`/api/users/${userCId}`)
+      .set('Authorization', `Bearer ${userBToken}`);
+    expect(deleteOther.status).toBe(403);
+
+    // Admin deletes user C -> allowed
+    const deleteByAdmin = await request(app.getHttpServer())
+      .delete(`/api/users/${userCId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect([200, 204]).toContain(deleteByAdmin.status); // service returns void; controller currently returns 200
+  });
 });
+
