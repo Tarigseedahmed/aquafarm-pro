@@ -43,6 +43,13 @@ export class UsersController {
     return this.usersService.findById(id);
   }
 
+  // Self profile without needing global user.read permission.
+  @UseGuards(JwtAuthGuard)
+  @Get('me/profile')
+  getSelf(@Request() req) {
+    return this.usersService.findById(req.user.id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
   @Permissions('user.write')
