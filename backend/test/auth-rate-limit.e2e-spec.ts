@@ -60,6 +60,8 @@ describe('Auth Login Rate Limiting (e2e)', () => {
     expect(throttled.body).toBeDefined();
     // message might be nested; we just confirm some rate limit semantics present
     const bodyText = JSON.stringify(throttled.body).toLowerCase();
-    expect(bodyText.includes('limit') || bodyText.includes('throttle') || bodyText.includes('too')).toBe(true);
+    expect(
+      bodyText.includes('limit') || bodyText.includes('throttle') || bodyText.includes('too'),
+    ).toBe(true);
   });
 });

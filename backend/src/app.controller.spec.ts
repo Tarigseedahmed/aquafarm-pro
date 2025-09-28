@@ -10,10 +10,7 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [
-        AppService,
-        { provide: RedisService, useValue: { isEnabled: () => false } },
-      ],
+      providers: [AppService, { provide: RedisService, useValue: { isEnabled: () => false } }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })

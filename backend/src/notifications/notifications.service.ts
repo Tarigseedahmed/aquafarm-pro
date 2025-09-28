@@ -12,9 +12,9 @@ export class NotificationsService implements OnModuleInit {
   constructor(
     @InjectRepository(Notification)
     private notificationsRepository: Repository<Notification>,
-  @Inject('NOTIFICATIONS_EVENT_EMITTER') private eventEmitter: EventEmitter,
-  @Optional() private readonly metrics?: MetricsService,
-  @Optional() private readonly redis?: RedisService,
+    @Inject('NOTIFICATIONS_EVENT_EMITTER') private eventEmitter: EventEmitter,
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly redis?: RedisService,
   ) {
     this.instanceId = uuidv4();
   }
