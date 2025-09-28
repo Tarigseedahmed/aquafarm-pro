@@ -10,6 +10,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { UsersModule } from '../users/users.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
+import { MetricsModule } from '../observability/metrics.module';
 // Removed static secret usage; using ConfigService for dynamic secret.
 
 @Module({
@@ -25,6 +26,7 @@ import { TenancyModule } from '../tenancy/tenancy.module';
         signOptions: { expiresIn: '24h' },
       }),
     }),
+    MetricsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, PermissionsGuard],

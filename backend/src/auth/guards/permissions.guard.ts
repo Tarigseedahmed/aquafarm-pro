@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { permissionsForRole } from '../authorization/permissions.enum';
@@ -20,7 +20,19 @@ export class PermissionsGuard implements CanActivate {
     if (!required || required.length === 0) return true;
     const request = ctx.switchToHttp().getRequest();
     const user = request.user;
-    if (!user) throw new ForbiddenException('Unauthenticated');
+    if (!user) {
+      const request = ctx.switchToHttp().getRequest();
+      const routePath = request.route?.path || request.originalUrl || 'unknown';
+      throwForbidden({
+        message: 'Unauthenticated',
+        required: required,
+        granted: [],
+        missing: ['missing_permissions'],
+        reason: 'missing_permissions',
+        route: routePath,
+        metrics: this.metrics,
+      });
+    }
     const grantedArray = permissionsForRole(user.role);
     const granted = new Set<string>(grantedArray);
     const missing = required.filter((perm) => !granted.has(perm));
