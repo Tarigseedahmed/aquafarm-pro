@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { normalizeRoute } from './route-normalizer';
 import {
   collectDefaultMetrics,
   Counter,
@@ -135,9 +136,7 @@ export class MetricsService {
 
   incRateLimit(route: string) {
     this.ensureInitialized();
-    // Normalize route label (limit cardinality) by stripping variable numeric / uuid segments
-    // Basic heuristic: replace long hex/uuid-like tokens with :id
-    const normalized = route.replace(/[0-9a-fA-F-]{8,}/g, ':id');
+    const normalized = normalizeRoute(route);
     this.rateLimitExceeded.inc({ route: normalized });
     if (process.env.NODE_ENV === 'test') {
       // eslint-disable-next-line no-console
@@ -147,7 +146,7 @@ export class MetricsService {
 
   observeRequestDuration(method: string, route: string, status: number, seconds: number) {
     this.ensureInitialized();
-    const normRoute = route.replace(/[0-9a-fA-F-]{8,}/g, ':id');
+    const normRoute = normalizeRoute(route);
     this.httpRequestDuration.observe({ method, route: normRoute, status: String(status) }, seconds);
     if (status >= 500 && status < 600) {
       this.http5xxErrors.inc({ route: normRoute, status: String(status) });
@@ -161,7 +160,7 @@ export class MetricsService {
 
   incForbidden(route: string, reason: string) {
     this.ensureInitialized();
-    const normRoute = route.replace(/[0-9a-fA-F-]{8,}/g, ':id');
+    const normRoute = normalizeRoute(route);
     this.forbiddenRequests.inc({ route: normRoute, reason });
   }
 }
