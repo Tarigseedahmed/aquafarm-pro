@@ -18,6 +18,7 @@ export class MetricsService {
   private rateLimitExceeded: Counter;
   private http5xxErrors: Counter;
   private httpRequestDuration: Histogram;
+  private forbiddenRequests: Counter;
 
   private initialized = false;
   // Process-wide guard so we only collect default metrics once even if multiple app instances
@@ -96,6 +97,11 @@ export class MetricsService {
       // Buckets tuned for typical API latencies: 5ms .. 5s
       [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
     );
+    this.forbiddenRequests = ensureCounter(
+      'forbidden_requests_total',
+      'Number of forbidden (403) responses with reason label',
+      ['route', 'reason'] as const,
+    );
 
     this.initialized = true;
   }
@@ -151,5 +157,11 @@ export class MetricsService {
   async expose(): Promise<string> {
     this.ensureInitialized();
     return this.registry.metrics();
+  }
+
+  incForbidden(route: string, reason: string) {
+    this.ensureInitialized();
+    const normRoute = route.replace(/[0-9a-fA-F-]{8,}/g, ':id');
+    this.forbiddenRequests.inc({ route: normRoute, reason });
   }
 }

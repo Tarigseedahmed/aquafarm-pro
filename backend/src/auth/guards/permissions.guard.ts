@@ -21,12 +21,15 @@ export class PermissionsGuard implements CanActivate {
     const granted = new Set<string>(grantedArray);
     const missing = required.filter((perm) => !granted.has(perm));
     if (missing.length) {
+      const routePath = request.route?.path || request.originalUrl || 'unknown';
       throwForbidden({
         message: 'Missing required permissions',
         required,
         granted: grantedArray,
         missing,
         reason: 'missing_permissions',
+        route: routePath,
+        metrics: request.app?.get?.('MetricsService') || undefined,
       });
     }
     return true;

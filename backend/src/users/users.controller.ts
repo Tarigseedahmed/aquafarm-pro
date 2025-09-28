@@ -58,12 +58,15 @@ export class UsersController {
   update(@Param('id') id: string, @Body() updateUserDto: Partial<CreateUserDto>, @Request() req) {
     // Object-level rule: allow if admin or self
     if (req.user.role !== 'admin' && req.user.id !== id) {
+      const routePath = req.route?.path || req.originalUrl || 'unknown';
       throwForbidden({
         message: 'Cannot modify other users',
         required: ['admin OR self'],
         granted: [req.user.role],
         missing: ['ownership'],
         reason: 'ownership',
+        route: routePath,
+        metrics: req.app?.get?.('MetricsService') || undefined,
       });
     }
     return this.usersService.update(id, updateUserDto);
@@ -75,12 +78,15 @@ export class UsersController {
   @HttpCode(204)
   remove(@Param('id') id: string, @Request() req) {
     if (req.user.role !== 'admin' && req.user.id !== id) {
+      const routePath = req.route?.path || req.originalUrl || 'unknown';
       throwForbidden({
         message: 'Cannot delete other users',
         required: ['admin OR self'],
         granted: [req.user.role],
         missing: ['ownership'],
         reason: 'ownership',
+        route: routePath,
+        metrics: req.app?.get?.('MetricsService') || undefined,
       });
     }
     return this.usersService.remove(id); // no content

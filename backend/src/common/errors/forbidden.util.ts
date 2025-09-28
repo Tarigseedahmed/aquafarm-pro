@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { MetricsService } from '../../observability/metrics.service';
 
 export interface ForbiddenDetails {
   message: string;
@@ -12,12 +13,23 @@ export interface ForbiddenDetails {
  * Helper to standardize ForbiddenException bodies across guards/controllers.
  * Adds a stable shape for frontend consumers and metrics labeling.
  */
-export function throwForbidden(details: ForbiddenDetails): never {
-  const { message, required, granted, missing, reason } = details;
+export function throwForbidden(
+  details: ForbiddenDetails & { route?: string; metrics?: MetricsService },
+): never {
+  const { message, required, granted, missing, reason, route, metrics } = details as any;
+  const finalReason = reason || inferReason(missing);
+  try {
+    // If metrics service passed explicitly OR globally retrievable later (keep simple now)
+    if (metrics && route) {
+      metrics.incForbidden(route, finalReason);
+    }
+  } catch {
+    /* ignore metrics errors */
+  }
   throw new ForbiddenException({
     error: 'Forbidden',
     message,
-    reason: reason || inferReason(missing),
+    reason: finalReason,
     required: required || [],
     granted: granted || [],
     missing: missing || [],
