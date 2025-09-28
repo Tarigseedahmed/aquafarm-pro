@@ -19,6 +19,7 @@ Multi-tenant aquaculture management API built with NestJS + TypeORM. Provides is
 - [التتبع و السجلات](#telemetry--logging)
 - [RLS](#postgres-row-level-security-rls)
 - [Auth](#auth)
+- [RBAC](#rbac)
 - [البيئة](#environment)
 - [الاختبارات](#testing)
 - [التحسينات المخطط لها](#planned-enhancements)
@@ -251,6 +252,43 @@ Security notes:
 - Test environment injects `test-secret` via `test/setup-e2e.ts`.
 - Add refresh token rotation & revocation list in future milestone.
 
+## RBAC
+
+Role-Based Access Control (مرحلة أولية):
+
+- الحقل `role` في المستخدم (حاليًا: `admin`, `user`).
+- حارس الأدوار `RolesGuard` ما زال مدعومًا للتوافق.
+- تمت إضافة نظام صلاحيات (Permissions) مبكر عبر:
+  - `Permission` enum في `auth/authorization/permissions.enum.ts`.
+  - مصفوفة ربط الأدوار `RolePermissions` (admin يمتلك جميع الصلاحيات؛ user يمتلك صلاحيات القراءة الأساسية فقط).
+  - ديكوريتر `@Permissions(...perms)` لإلزام endpoints بصلاحيات محددة.
+  - `PermissionsGuard` يتحقق من امتلاك الدور للصلاحيات المطلوبة.
+
+مثال (TenantsController):
+
+```ts
+@Post()
+@Roles('admin')
+@Permissions('tenant.create')
+create(@Body() dto: CreateTenantDto) { ... }
+```
+
+السبب في الجمع بين @Roles و @Permissions الآن: الحفاظ على توافق المسارات الحالية مع الانتقال التدريجي لصيغة صلاحيات أكثر دقة لاحقًا (مثل `pond.read`, `farm.update`).
+
+خارطة طريق RBAC القادمة:
+
+1. استخراج الأدوار والصلاحيات إلى جداول قاعدة بيانات (roles, role_permissions, user_roles) مع كاش داخلي.
+2. دعم تخصيص صلاحيات ديناميكي لكل تينانت (عقود Enterprise مستقبلية).
+3. إضافة صلاحيات granular لموارد: (farm.read, farm.write, pond.manage, water.read, notification.batch.mark, metrics.read).
+4. دعم Scopes في الـ JWT (exp: `scp`: ["tenant.read","farm.write"]).
+5. حارس مركّب يدمج (Tenant Isolation + Permission) في قرار واحد لمؤشرات أسهل للمراقبة.
+
+ملاحظات أمنية:
+
+- المسارات غير الموسومة بـ @Permissions تُعتبر مفتوحة ضمن نطاق الدور الحالي.
+- يفضل عدم الاعتماد الطويل على نص الدور (string) بل الانتقال لمعالجة قائمة صلاحيات صريحة للمستخدم.
+- عند إدراج DB RBAC طبقة caching مهمة لتقليل استعلامات القراءة المتكررة.
+
 ## Environment
 
 See `.env.example` for annotated configuration (SQLite vs PostgreSQL, multi-tenancy defaults, JWT settings, Redis optional integration).
@@ -321,7 +359,7 @@ Postgres RLS harness (only runs under `DB_TYPE=postgres`): `rls-postgres.e2e-spe
 
 ## Planned Enhancements
 
-- RBAC permissions matrix.
+- ترقية RBAC: استخراج ديناميكي للأدوار والصلاحيات (DB) + caching.
 - Indexes on (tenantId, foreign keys) for performance – future migration.
 - Audit logging & metrics.
 - Redis caching, WebSocket notifications.
