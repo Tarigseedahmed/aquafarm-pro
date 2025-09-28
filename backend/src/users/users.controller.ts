@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
+  HttpCode,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -71,6 +72,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @Permissions('user.write')
+  @HttpCode(204)
   remove(@Param('id') id: string, @Request() req) {
     if (req.user.role !== 'admin' && req.user.id !== id) {
       throw new ForbiddenException({
@@ -81,7 +83,7 @@ export class UsersController {
         missing: ['ownership'],
       } as any);
     }
-    return this.usersService.remove(id);
+    return this.usersService.remove(id); // no content
   }
 
   @Get('test/mock')

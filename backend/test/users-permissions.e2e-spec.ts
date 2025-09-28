@@ -113,7 +113,7 @@ describe('Users permissions (e2e)', () => {
     const deleteByAdmin = await request(app.getHttpServer())
       .delete(`/api/users/${userCId}`)
       .set('Authorization', `Bearer ${adminToken}`);
-    expect([200, 204]).toContain(deleteByAdmin.status); // service returns void; controller currently returns 200
+    expect(deleteByAdmin.status).toBe(204); // DELETE now standardized to 204 No Content
   });
 });
 
