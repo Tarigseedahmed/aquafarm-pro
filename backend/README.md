@@ -344,12 +344,48 @@ This design keeps latency low for the originating instance while enabling cross-
 
 Metrics added (Prometheus):
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `http_requests_total{method,status}` | Counter | Total HTTP requests by method & status. |
-| `sse_clients_total` | Counter | Cumulative SSE connections opened. |
-| `active_sse_connections` | Gauge | Current open SSE notification streams. |
-| `notifications_emitted_total` | Counter | Notifications created (emitted). |
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `http_requests_total` | Counter | method, status | Total HTTP requests by method & status. |
+| `http_request_duration_seconds` | Histogram | method, route, status | Request latency (seconds) with buckets tuned for typical API latencies (5ms .. 5s). Routes normalized (`:id`) to limit cardinality. |
+| `http_5xx_errors_total` | Counter | route, status | Count of 5xx responses (emitted alongside duration recording). |
+| `rate_limit_exceeded_total` | Counter | route | Requests rejected by rate limiting (normalized route). |
+| `forbidden_requests_total` | Counter | route, reason | 403 responses. `reason` ∈ {`missing_permissions`, `ownership`, `forbidden`, custom}. Incremented centrally via `throwForbidden`. |
+| `sse_clients_total` | Counter | (none) | Cumulative SSE client connections opened. |
+| `active_sse_connections` | Gauge | (none) | Current open SSE notification streams. |
+| `notifications_emitted_total` | Counter | (none) | Notifications created (emitted). |
+
+Structured 403 response schema (standardized via helper):
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Missing required permissions",
+  "reason": "missing_permissions",
+  "required": ["user.write"],
+  "granted": ["user.read"],
+  "missing": ["user.write"]
+}
+```
+
+Ownership enforcement example (non-admin modifying another user):
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Cannot modify another user",
+  "reason": "ownership",
+  "required": [],
+  "granted": ["user.write"],
+  "missing": ["ownership"]
+}
+```
+
+Notes:
+
+1. `reason` automatically inferred: if `missing` contains `ownership` → `ownership`, else if `missing` non-empty → `missing_permissions`, otherwise fallback `forbidden` (or explicit value if supplied).
+2. Metrics cardinality protection: dynamic UUID / long hex segments normalized to `:id` in `route` label.
+3. All code paths producing 403 SHOULD invoke `throwForbidden` to ensure consistent schema + metrics.
 
 ## Testing
 
