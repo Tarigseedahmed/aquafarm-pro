@@ -273,16 +273,17 @@ Role-Based Access Control (مرحلة أولية متوسعة):
 | Role   | tenant.read | tenant.create | tenant.update | tenant.delete | user.read | user.write | farm.read | farm.create | farm.update | farm.delete | pond.read | pond.create | pond.update | pond.delete |
 |--------|-------------|---------------|---------------|---------------|-----------|------------|-----------|-------------|-------------|-------------|-----------|-------------|-------------|-------------|
 | admin  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| user   | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| user   | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
 | viewer | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | editor | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
 
 ملاحظات:
 
-1. صلاحيات user الحالية واسعة عمدًا لدعم التطوير السريع للـ CRUD؛ سيتم لاحقًا ضبطها (مثلاً تقييد delete أو ربط بالمالك).
-2. يمكن الانتقال إلى نموذج object-level permissions أو policy engine (مثل Casbin / OPA) عند توسع التعقيد.
-3. إضافة user.write مستقبلًا ستُستخدم لإدارة الحسابات (إعادة تعيين كلمة مرور، تعطيل مستخدم ...إلخ).
-4. عند إدخال RBAC ديناميكي: الحقول أعلاه ستُستبدل بقراءة من cache (in-memory + TTL) مبني على جداول DB.
+1. تم تضييق صلاحيات user: لم يعد يملك farm.delete أو pond.delete (الحذف الآن Admin فقط أو قد يُمنح لاحقًا لمالك المورد وفق سياسة مستقبلية).
+2. تم تطبيق قاعدة object-level على تحديث/حذف المستخدم: non-admin لا يستطيع تعديل أو حذف مستخدم آخر (يسمح بالـ self فقط)؛ admin مستثنى.
+3. يمكن الانتقال إلى نموذج policy engine (Casbin / OPA) عند توسع التعقيد (علاقات مالك متعددة، تفويض دقيق).
+4. إضافة user.write حاليًا تخضع لشرط (admin أو self) لعمليات PATCH/DELETE.
+5. عند إدخال RBAC ديناميكي: سيجري استبدال المصفوفة الحالية بطبقة DB + cache (in-memory مع TTL وبث invalidation عند التحديث).
 
 مثال (TenantsController):
 
@@ -295,15 +296,15 @@ create(@Body() dto: CreateTenantDto) { ... }
 
 السبب في الجمع بين @Roles و @Permissions الآن: الحفاظ على توافق المسارات الحالية مع الانتقال التدريجي لصيغة صلاحيات أكثر دقة لاحقًا (مثل `pond.read`, `farm.update`).
 
-خارطة طريق RBAC القادمة (مُحدثة):
+خارطة طريق RBAC القادمة (مُحدثة بعد التضييق):
 
-1. استخراج الأدوار والصلاحيات إلى جداول قاعدة بيانات (roles, permissions, role_permissions, user_roles) + كاش داخلي مع bust عند تحديث.
-2. تخصيص صلاحيات لكل تينانت (Tiered plans + Enterprise custom contracts).
-3. تضييق user إلى: (farm.read/create/update, pond.read/create/update) وحصر delete في admin/owner.
-4. إضافة water-quality.*, fish-batch.*, feeding-record.*, notification.* و metrics.read.
-5. دعم Scopes في الـ JWT (حقل scp) لواجهات خارجية أو Tokens مقيدة.
-6. حارس مركّب (CompositeGuard) يدمج Tenant + Permissions + Rate metadata لمؤشرات Prometheus.
-7. تدقيق أمني (Security Audit Log) لكل عمليات تمتلك صلاحيات حساسة (tenant.update, user.write, farm.delete, pond.delete).
+1. استخراج الأدوار والصلاحيات إلى جداول قاعدة بيانات (roles, permissions, role_permissions, user_roles) + كاش داخلي مع bust عند التحديث.
+2. تخصيص صلاحيات لكل تينانت (Tiered plans + Enterprise custom contracts / feature flags).
+3. إضافة نطاقات جديدة: water-quality.*, fish-batch.*, feeding-record.*, notification.*, metrics.read, audit.read.
+4. دعم Scopes في الـ JWT (حقل scp) لتوليد Access Tokens مقيدة صلاحيات.
+5. حارس مركّب (CompositeGuard) يدمج Tenant + Permissions + Rate metadata + Trace context.
+6. تدقيق أمني (Security Audit Log) لعمليات حساسة (tenant.update, user.write, farm.delete, pond.delete, role/perm changes).
+7. سياسة ملكية موارد (Ownership Policy) لحالات مستقبلية (مثلاً منح delete للمالك دون admin).
 
 ملاحظات أمنية:
 
