@@ -94,6 +94,6 @@ describe('Farms & Ponds permissions (e2e)', () => {
     const userDeletePond = await request(app.getHttpServer())
       .delete(`/api/ponds/${pondId}`)
       .set('Authorization', `Bearer ${userToken}`);
-    expect(userDeletePond.status).toBe(200); // service returns {status: 204} wrapper
+    expect(userDeletePond.status).toBe(204);
   });
 });

@@ -10,6 +10,7 @@ import {
   Request,
   Query,
   ValidationPipe,
+  HttpCode,
 } from '@nestjs/common';
 import { FarmsService } from './farms.service';
 import { CreateFarmDto } from './dto/create-farm.dto';
@@ -74,10 +75,11 @@ export class FarmsController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @Permissions('farm.delete')
+  @HttpCode(204)
   async remove(@Param('id') id: string, @Request() req) {
     const ownerId = req.user.role === 'admin' ? undefined : req.user.id;
     await this.farmsService.remove(id, ownerId, req.tenantId);
-    return { status: 204 };
+    return; // no content
   }
 
   // Endpoint ØªØ¬Ø±ÙŠØ¨ÙŠ Ù„Ù„Ø§Ø®ØªØ¨Ø§Ø±

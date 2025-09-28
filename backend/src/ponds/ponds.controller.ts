@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  HttpCode,
 } from '@nestjs/common';
 import { PondsService } from './ponds.service';
 import { CreatePondDto } from './dto/create-pond.dto';
@@ -57,8 +58,9 @@ export class PondsController {
 
   @Delete(':id')
   @Permissions('pond.delete')
+  @HttpCode(204)
   async remove(@Param('id') id: string, @Request() req) {
     await this.pondsService.remove(id, req.tenantId);
-    return { status: 204 };
+    return; // no content
   }
 }
