@@ -1,0 +1,42 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "ponds": "Ponds",
+    "production": "Production",
+    "accounting": "Accounting",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "welcome": "Welcome to AquaFarm Pro"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalPonds": "Total Ponds",
+    "activeCycles": "Active Cycles",
+    "totalFish": "Total Fish",
+    "waterQuality": "Water Quality"
+  },
+  "ponds": {
+    "title": "Pond Management",
+    "addPond": "Add New Pond",
+    "pondName": "Pond Name",
+    "capacity": "Capacity",
+    "location": "Location",
+    "status": "Status"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import"
+  }
+}

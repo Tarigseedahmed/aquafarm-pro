@@ -43,6 +43,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request & { correlationId?: string }>();
+    // Start time previously used for latency metrics (now handled in middleware)
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let errorName = 'InternalServerError';
@@ -111,5 +112,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     });
 
     response.status(status).json(body);
+
+    // Duration + 5xx counting handled centrally in success-path middleware; avoid double counting here.
+    // (Left intentionally empty for metrics to remain single-source-of-truth.)
   }
 }

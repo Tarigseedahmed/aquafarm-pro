@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { collectDefaultMetrics, Counter, Gauge, register as globalRegistry } from 'prom-client';
+import {
+  collectDefaultMetrics,
+  Counter,
+  Gauge,
+  Histogram,
+  register as globalRegistry,
+} from 'prom-client';
 
 @Injectable()
 export class MetricsService {
@@ -10,6 +16,8 @@ export class MetricsService {
   private notificationsEmitted: Counter;
   private activeSseConnections: Gauge;
   private rateLimitExceeded: Counter;
+  private http5xxErrors: Counter;
+  private httpRequestDuration: Histogram;
 
   private initialized = false;
   // Process-wide guard so we only collect default metrics once even if multiple app instances
@@ -41,6 +49,19 @@ export class MetricsService {
       if (existing) return existing as Gauge;
       return new Gauge({ name, help, registers: [this.registry] });
     };
+    const ensureHistogram = (
+      name: string,
+      help: string,
+      labelNames: readonly string[] | undefined,
+      buckets?: number[],
+    ) => {
+      const existing = this.registry.getSingleMetric(name) as Histogram | undefined;
+      if (existing) return existing as Histogram;
+      const cfg: any = { name, help, registers: [this.registry] };
+      if (labelNames) cfg.labelNames = labelNames;
+      if (buckets) cfg.buckets = buckets;
+      return new Histogram(cfg);
+    };
 
     this.httpRequestsTotal = ensureCounter('http_requests_total', 'Total number of HTTP requests', [
       'method',
@@ -62,6 +83,18 @@ export class MetricsService {
       'rate_limit_exceeded_total',
       'Number of requests rejected due to rate limiting',
       ['route'] as const,
+    );
+    this.http5xxErrors = ensureCounter(
+      'http_5xx_errors_total',
+      'Total number of HTTP 5xx responses',
+      ['route', 'status'] as const,
+    );
+    this.httpRequestDuration = ensureHistogram(
+      'http_request_duration_seconds',
+      'Duration of HTTP requests in seconds',
+      ['method', 'route', 'status'] as const,
+      // Buckets tuned for typical API latencies: 5ms .. 5s
+      [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
     );
 
     this.initialized = true;
@@ -103,6 +136,15 @@ export class MetricsService {
     if (process.env.NODE_ENV === 'test') {
       // eslint-disable-next-line no-console
       console.log('[metrics] rate_limit_exceeded_total inc for route', normalized);
+    }
+  }
+
+  observeRequestDuration(method: string, route: string, status: number, seconds: number) {
+    this.ensureInitialized();
+    const normRoute = route.replace(/[0-9a-fA-F-]{8,}/g, ':id');
+    this.httpRequestDuration.observe({ method, route: normRoute, status: String(status) }, seconds);
+    if (status >= 500 && status < 600) {
+      this.http5xxErrors.inc({ route: normRoute, status: String(status) });
     }
   }
 

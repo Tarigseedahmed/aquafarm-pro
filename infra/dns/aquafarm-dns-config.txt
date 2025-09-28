@@ -1,0 +1,128 @@
+# DNS Configuration for aquafarm.cloud
+# VPS: srv1029413.hstgr.cloud
+# Current DNS: ns1.dns-parking.com, ns2.dns-parking.com (NEEDS UPDATE)
+
+# ⚠️ IMPORTANT: DNS currently pointing to parking service!
+# Current nameservers: ns1.dns-parking.com, ns2.dns-parking.com
+# Need to change to Hostinger nameservers FIRST
+
+# Step 1: Change Nameservers in Domain Registrar
+# Login to your domain registrar (where you bought aquafarm.cloud)
+# Change nameservers from:
+#   ns1.dns-parking.com
+#   ns2.dns-parking.com
+# To Hostinger nameservers:
+#   ns1.hostinger.com
+#   ns2.hostinger.com
+#   ns3.hostinger.com
+#   ns4.hostinger.com
+
+# Step 2: Get your VPS IP address:
+# dig +short srv1029413.hstgr.cloud
+# Or: nslookup srv1029413.hstgr.cloud
+
+# Step 3: Add DNS Records in Hostinger Control Panel
+# After nameservers are updated (takes 24-48 hours)
+
+## A Records (replace YOUR_VPS_IP with actual IP)
+# Point main domain and subdomains to VPS IP
+
+# Main domain
+aquafarm.cloud.                A       YOUR_VPS_IP
+
+# WWW subdomain
+www.aquafarm.cloud.           A       YOUR_VPS_IP
+
+# API subdomain
+api.aquafarm.cloud.           A       YOUR_VPS_IP
+
+# Admin panel
+admin.aquafarm.cloud.         A       YOUR_VPS_IP
+
+# Development/staging (optional)
+dev.aquafarm.cloud.           A       YOUR_VPS_IP
+staging.aquafarm.cloud.       A       YOUR_VPS_IP
+
+## CNAME Records (alternative to A records for subdomains)
+# You can use CNAME instead of A records for subdomains:
+# www.aquafarm.cloud.           CNAME   aquafarm.cloud.
+# api.aquafarm.cloud.           CNAME   aquafarm.cloud.
+# admin.aquafarm.cloud.         CNAME   aquafarm.cloud.
+
+## MX Records (Email)
+# For email functionality (using Hostinger email or external provider)
+aquafarm.cloud.               MX  10  mail.aquafarm.cloud.
+aquafarm.cloud.               MX  20  mail2.hostinger.com.
+
+# Mail server A record
+mail.aquafarm.cloud.          A       YOUR_VPS_IP
+
+## TXT Records
+
+# SPF Record (Email security)
+aquafarm.cloud.               TXT     "v=spf1 include:_spf.hostinger.com ~all"
+
+# DKIM Record (Email authentication)
+# This will be provided by your email service
+default._domainkey.aquafarm.cloud.    TXT     "v=DKIM1; k=rsa; p=YOUR_DKIM_PUBLIC_KEY"
+
+# DMARC Record (Email policy)
+_dmarc.aquafarm.cloud.        TXT     "v=DMARC1; p=quarantine; rua=mailto:dmarc@aquafarm.cloud"
+
+# Domain verification (for SSL certificates)
+aquafarm.cloud.               TXT     "v=spf1 include:_spf.hostinger.com ~all"
+
+## SRV Records (if using special services)
+# Example for WebSocket or special protocols
+# _service._protocol.aquafarm.cloud.    SRV     0 5 PORT aquafarm.cloud.
+
+## CAA Records (SSL Certificate Authority Authorization)
+# Allow Let's Encrypt and other CAs to issue certificates
+aquafarm.cloud.               CAA     0 issue "letsencrypt.org"
+aquafarm.cloud.               CAA     0 issue "digicert.com"
+aquafarm.cloud.               CAA     0 iodef "mailto:ssl-admin@aquafarm.cloud"
+
+# Instructions for Hostinger DNS Management:
+# ==========================================
+
+# 1. Log in to your Hostinger control panel
+# 2. Go to "Domains" → "Manage Domain" → "DNS Zone"
+# 3. Add the records above, replacing YOUR_VPS_IP with actual IP
+
+# To get your VPS IP address:
+# Method 1: From VPS dashboard in Hostinger
+# Method 2: SSH to VPS and run: curl -4 ifconfig.me
+# Method 3: Run: dig +short srv1029413.hstgr.cloud
+
+# Example with actual IP (replace 1.2.3.4 with your real IP):
+# aquafarm.cloud.                A       1.2.3.4
+# www.aquafarm.cloud.           A       1.2.3.4  
+# api.aquafarm.cloud.           A       1.2.3.4
+# admin.aquafarm.cloud.         A       1.2.3.4
+
+# Verification Commands:
+# ======================
+# After adding DNS records, verify with:
+
+# dig aquafarm.cloud
+# dig www.aquafarm.cloud  
+# dig api.aquafarm.cloud
+# dig admin.aquafarm.cloud
+
+# Or use online tools:
+# - https://dnschecker.org/
+# - https://www.whatsmydns.net/
+
+# DNS Propagation:
+# ================
+# DNS changes may take 1-48 hours to propagate globally
+# Most changes are visible within 1-4 hours
+# Use TTL (Time To Live) of 300-3600 seconds for faster updates
+
+# SSL Certificate Setup:
+# ======================
+# After DNS propagation, run SSL setup:
+# sudo certbot certonly --webroot -w /var/www/html -d aquafarm.cloud -d www.aquafarm.cloud -d api.aquafarm.cloud -d admin.aquafarm.cloud
+
+# Or use DNS challenge:
+# sudo certbot certonly --manual --preferred-challenges dns -d aquafarm.cloud -d "*.aquafarm.cloud"

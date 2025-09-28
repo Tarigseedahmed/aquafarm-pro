@@ -81,9 +81,25 @@ async function bootstrap() {
   // Metrics request counter (middleware) if module loaded
   if (metrics) {
     app.use((req, res, next) => {
+      // High-resolution start time for latency measurement (shared with exception filter if needed)
+      (req as any)._metricsStart = process.hrtime();
       res.on('finish', () => {
         try {
           metrics.incRequest(req.method, res.statusCode);
+          // Observe duration for all responses (2xx-5xx). Histogram method will also increment 5xx counter internally.
+          const diff = process.hrtime((req as any)._metricsStart || process.hrtime());
+          const seconds = diff[0] + diff[1] / 1e9;
+          try {
+            metrics.observeRequestDuration(
+              req.method,
+              // Prefer the matched route path to reduce cardinality; fallback to originalUrl
+              req.route?.path || req.originalUrl || 'unknown',
+              res.statusCode,
+              seconds,
+            );
+          } catch {
+            /* swallow metric errors */
+          }
         } catch {
           /* swallow */
         }

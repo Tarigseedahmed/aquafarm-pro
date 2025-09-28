@@ -1,0 +1,42 @@
+{
+  "navigation": {
+    "dashboard": "لوحة التحكم",
+    "ponds": "الأحواض",
+    "production": "الإنتاج",
+    "accounting": "المحاسبة",
+    "reports": "التقارير",
+    "settings": "الإعدادات"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "welcome": "مرحباً بك في AquaFarm Pro"
+  },
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "totalPonds": "إجمالي الأحواض",
+    "activeCycles": "الدورات النشطة",
+    "totalFish": "إجمالي الأسماك",
+    "waterQuality": "جودة المياه"
+  },
+  "ponds": {
+    "title": "إدارة الأحواض",
+    "addPond": "إضافة حوض جديد",
+    "pondName": "اسم الحوض",
+    "capacity": "السعة",
+    "location": "الموقع",
+    "status": "الحالة"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "search": "بحث",
+    "filter": "تصفية",
+    "export": "تصدير",
+    "import": "استيراد"
+  }
+}
