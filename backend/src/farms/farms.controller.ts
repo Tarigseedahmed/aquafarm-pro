@@ -15,6 +15,7 @@ import { FarmsService } from './farms.service';
 import { CreateFarmDto } from './dto/create-farm.dto';
 import { UpdateFarmDto } from './dto/update-farm.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('farms')
 export class FarmsController {
@@ -22,12 +23,14 @@ export class FarmsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
+  @Permissions('farm.create')
   create(@Body(new ValidationPipe()) createFarmDto: CreateFarmDto, @Request() req) {
     return this.farmsService.create(createFarmDto, req.user.id, req.tenantId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get()
+  @Permissions('farm.read')
   findAll(
     @Request() req,
     @Query('all') all?: string,
@@ -42,6 +45,7 @@ export class FarmsController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
+  @Permissions('farm.read')
   findOne(@Param('id') id: string, @Request() req) {
     const ownerId = req.user.role === 'admin' ? undefined : req.user.id;
     return this.farmsService.findOne(id, ownerId, req.tenantId);
@@ -49,6 +53,7 @@ export class FarmsController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id/stats')
+  @Permissions('farm.read')
   getFarmStats(@Param('id') id: string, @Request() req) {
     const ownerId = req.user.role === 'admin' ? undefined : req.user.id;
     return this.farmsService.getFarmStats(id, ownerId, req.tenantId);
@@ -56,6 +61,7 @@ export class FarmsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
+  @Permissions('farm.update')
   update(
     @Param('id') id: string,
     @Body(new ValidationPipe()) updateFarmDto: UpdateFarmDto,
@@ -67,6 +73,7 @@ export class FarmsController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @Permissions('farm.delete')
   async remove(@Param('id') id: string, @Request() req) {
     const ownerId = req.user.role === 'admin' ? undefined : req.user.id;
     await this.farmsService.remove(id, ownerId, req.tenantId);
