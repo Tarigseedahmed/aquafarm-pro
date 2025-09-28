@@ -16,11 +16,19 @@ export class PermissionsGuard implements CanActivate {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user;
     if (!user) throw new ForbiddenException('Unauthenticated');
-  const granted = new Set<string>(permissionsForRole(user.role));
-  const missing = required.filter((perm) => !granted.has(perm));
+    const grantedArray = permissionsForRole(user.role);
+    const granted = new Set<string>(grantedArray);
+    const missing = required.filter((perm) => !granted.has(perm));
     if (missing.length) {
-      throw new ForbiddenException('Missing permissions: ' + missing.join(','));
+      throw new ForbiddenException({
+        error: 'Forbidden',
+        message: 'Missing required permissions',
+        required,
+        granted: grantedArray,
+        missing,
+      } as any);
     }
     return true;
   }
 }
+
