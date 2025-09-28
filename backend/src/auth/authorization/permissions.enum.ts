@@ -44,6 +44,17 @@ export const RolePermissions: Record<string, Permission[]> = {
     Permission.POND_DELETE,
   ],
   viewer: [Permission.TENANT_READ, Permission.FARM_READ, Permission.POND_READ],
+  editor: [
+    Permission.TENANT_READ,
+    Permission.USER_READ,
+    Permission.USER_WRITE,
+    Permission.FARM_READ,
+    Permission.FARM_CREATE,
+    Permission.FARM_UPDATE,
+    Permission.POND_READ,
+    Permission.POND_CREATE,
+    Permission.POND_UPDATE,
+  ],
 };
 
 export function permissionsForRole(role?: string): Permission[] {

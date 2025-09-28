@@ -29,9 +29,10 @@ describe('Users permissions (e2e)', () => {
     await app.close();
   });
 
-  it('viewer cannot list or create users; admin can', async () => {
+  it('viewer cannot list or create users; editor can list/create like admin subset', async () => {
     const adminToken = await registerAndLogin(app, 'admin-users@example.com', 'admin');
     const viewerToken = await registerAndLogin(app, 'viewer-users@example.com', 'viewer');
+    const editorToken = await registerAndLogin(app, 'editor-users@example.com', 'editor');
 
     // Admin can list users
     const adminList = await request(app.getHttpServer())
@@ -51,6 +52,13 @@ describe('Users permissions (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Extra', email: 'extra@example.com', password: 'Password123!' });
     expect(createUser.status).toBe(201);
+
+    // Editor can also create user
+    const createByEditor = await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', `Bearer ${editorToken}`)
+      .send({ name: 'Ed', email: 'ed@example.com', password: 'Password123!' });
+    expect(createByEditor.status).toBe(201);
 
     // Viewer cannot create user
     const viewerCreate = await request(app.getHttpServer())
