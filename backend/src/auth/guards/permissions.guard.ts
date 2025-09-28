@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { permissionsForRole } from '../authorization/permissions.enum';
+import { throwForbidden } from '../../common/errors/forbidden.util';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -20,13 +21,13 @@ export class PermissionsGuard implements CanActivate {
     const granted = new Set<string>(grantedArray);
     const missing = required.filter((perm) => !granted.has(perm));
     if (missing.length) {
-      throw new ForbiddenException({
-        error: 'Forbidden',
+      throwForbidden({
         message: 'Missing required permissions',
         required,
         granted: grantedArray,
         missing,
-      } as any);
+        reason: 'missing_permissions',
+      });
     }
     return true;
   }

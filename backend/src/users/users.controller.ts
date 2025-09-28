@@ -8,13 +8,13 @@ import {
   Delete,
   UseGuards,
   Request,
-  ForbiddenException,
   HttpCode,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import { throwForbidden } from '../common/errors/forbidden.util';
 
 @Controller('users')
 export class UsersController {
@@ -58,13 +58,13 @@ export class UsersController {
   update(@Param('id') id: string, @Body() updateUserDto: Partial<CreateUserDto>, @Request() req) {
     // Object-level rule: allow if admin or self
     if (req.user.role !== 'admin' && req.user.id !== id) {
-      throw new ForbiddenException({
-        error: 'Forbidden',
+      throwForbidden({
         message: 'Cannot modify other users',
         required: ['admin OR self'],
         granted: [req.user.role],
         missing: ['ownership'],
-      } as any);
+        reason: 'ownership',
+      });
     }
     return this.usersService.update(id, updateUserDto);
   }
@@ -75,13 +75,13 @@ export class UsersController {
   @HttpCode(204)
   remove(@Param('id') id: string, @Request() req) {
     if (req.user.role !== 'admin' && req.user.id !== id) {
-      throw new ForbiddenException({
-        error: 'Forbidden',
+      throwForbidden({
         message: 'Cannot delete other users',
         required: ['admin OR self'],
         granted: [req.user.role],
         missing: ['ownership'],
-      } as any);
+        reason: 'ownership',
+      });
     }
     return this.usersService.remove(id); // no content
   }
