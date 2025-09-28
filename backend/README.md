@@ -263,7 +263,8 @@ Role-Based Access Control (مرحلة أولية متوسعة):
   - مصفوفة ربط الأدوار `RolePermissions`:
     - admin: جميع الصلاحيات (tenant CRUD, user read/write, farm CRUD, pond CRUD)
     - user: قراءة التينانت + CRUD للمزارع والأحواض (مؤقتًا حتى تفعيل قيود أكثر دقة لاحقًا)
-    - viewer: قراءة فقط (tenant.read, farm.read, pond.read)
+  - viewer: قراءة فقط (tenant.read, farm.read, pond.read)
+  - editor: صلاحيات تحرير (قراءة التينانت + قراءة/إنشاء/تحديث المزارع والأحواض + إدارة المستخدمين الأساسية user.read / user.write بدون صلاحيات tenant.* الإدارية)
   - ديكوريتر `@Permissions(...perms)` لإلزام endpoints بصلاحيات محددة (تم تطبيقه الآن على Tenants + Farms + Ponds).
   - `PermissionsGuard` يتحقق من امتلاك الدور للصلاحيات المطلوبة ويعيد 403 مع قائمة الصلاحيات الناقصة.
 
@@ -274,6 +275,7 @@ Role-Based Access Control (مرحلة أولية متوسعة):
 | admin  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | user   | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | viewer | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| editor | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
 
 ملاحظات:
 
