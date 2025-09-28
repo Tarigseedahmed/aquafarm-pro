@@ -289,6 +289,7 @@
 8. تحسينات Observability: عداد أخطاء 5xx، هيستوغرام زمن الاستجابة (اختياري bucket strategy)، وإضافة traceId محتمل لاحقاً.
 9. إعداد groundwork لـ RLS متقدم: سياسات إضافية + اختبار Postgres موسَّع (عند توفر بيئة DB فعلية).
 10. دراسة إدراج WebSocket Gateway (اختياري) أو الاستمرار بالـ SSE مع تحسين retry/backoff على الواجهة.
+11. (منجز) إضافة اختبار E2E سلبي لصلاحيات المستأجر: مستخدم role=user يتلقى 403 عند محاولات create/update/delete للـ Tenant (يثبت فاعلية PermissionsGuard).
 
 ---
 
