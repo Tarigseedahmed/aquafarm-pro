@@ -1,6 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import { PermissionsGuard } from './permissions.guard';
-import { ExecutionContext } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { MetricsService } from '../../observability/metrics.service';
 
 function mockContext(user: any): ExecutionContext {
   return {
@@ -10,8 +11,8 @@ function mockContext(user: any): ExecutionContext {
     // minimal stubs
     getArgByIndex: () => undefined,
     getArgs: () => [],
-    switchToRpc: () => ({} as any),
-    switchToWs: () => ({} as any),
+    switchToRpc: () => ({}) as any,
+    switchToWs: () => ({}) as any,
     getType: () => 'http',
   } as unknown as ExecutionContext;
 }
@@ -19,9 +20,12 @@ function mockContext(user: any): ExecutionContext {
 describe('PermissionsGuard', () => {
   const reflector = new Reflector();
   let guard: PermissionsGuard;
+  const metricsMock: Partial<MetricsService> = {
+    incForbidden: jest.fn(),
+  } as any;
 
   beforeEach(() => {
-    guard = new PermissionsGuard(reflector);
+    guard = new PermissionsGuard(reflector, metricsMock as MetricsService);
   });
 
   it('passes when no permissions required', () => {
@@ -39,6 +43,8 @@ describe('PermissionsGuard', () => {
   it('denies user missing permission', () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['tenant.update']);
     const ctx = mockContext({ role: 'user' });
-    expect(() => guard.canActivate(ctx)).toThrow('Missing permissions');
+    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+    expect(metricsMock.incForbidden).toHaveBeenCalled();
   });
 });
+

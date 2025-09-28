@@ -3,10 +3,14 @@ import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { permissionsForRole } from '../authorization/permissions.enum';
 import { throwForbidden } from '../../common/errors/forbidden.util';
+import { MetricsService } from '../../observability/metrics.service';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private metrics: MetricsService,
+  ) {}
 
   canActivate(ctx: ExecutionContext): boolean {
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
@@ -29,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
         missing,
         reason: 'missing_permissions',
         route: routePath,
-        metrics: request.app?.get?.('MetricsService') || undefined,
+        metrics: this.metrics,
       });
     }
     return true;
