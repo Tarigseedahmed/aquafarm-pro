@@ -29,8 +29,8 @@ describe('Farms & Ponds permissions (e2e)', () => {
     await app.close();
   });
 
-  it('viewer can only read, user can CRUD, both within tenant', async () => {
-    // Register a normal user (can CRUD farms/ponds per current mapping)
+  it('viewer read-only; user can create/update but not delete farms/ponds (tenant-scoped)', async () => {
+    // Register a normal user (now create/update only per tightened mapping)
     const userToken = await register(app, 'crud-user@example.com', 'user');
     // Create a farm with user
     const farmRes = await request(app.getHttpServer())
@@ -90,10 +90,11 @@ describe('Farms & Ponds permissions (e2e)', () => {
       .send({ name: 'Pond 1 Updated' });
     expect(userUpdatePond.status).toBe(200);
 
-    // User can delete pond
+    // User cannot delete pond anymore
     const userDeletePond = await request(app.getHttpServer())
       .delete(`/api/ponds/${pondId}`)
       .set('Authorization', `Bearer ${userToken}`);
-    expect(userDeletePond.status).toBe(204);
+    expect(userDeletePond.status).toBe(403);
   });
 });
+
