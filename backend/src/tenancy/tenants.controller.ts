@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('tenants')
 @UseGuards(JwtAuthGuard, AdminGuard, RolesGuard)
@@ -29,18 +30,21 @@ export class TenantsController {
 
   @Post()
   @Roles('admin')
+  @Permissions('tenant.create')
   create(@Body() dto: CreateTenantDto) {
     return this.tenantsService.create(dto);
   }
 
   @Patch(':id')
   @Roles('admin')
+  @Permissions('tenant.update')
   update(@Param('id') id: string, @Body() dto: UpdateTenantDto) {
     return this.tenantsService.update(id, dto);
   }
 
   @Delete(':id')
   @Roles('admin')
+  @Permissions('tenant.delete')
   remove(@Param('id') id: string) {
     return this.tenantsService.remove(id);
   }
