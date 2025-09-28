@@ -254,15 +254,33 @@ Security notes:
 
 ## RBAC
 
-Role-Based Access Control (مرحلة أولية):
+Role-Based Access Control (مرحلة أولية متوسعة):
 
-- الحقل `role` في المستخدم (حاليًا: `admin`, `user`).
-- حارس الأدوار `RolesGuard` ما زال مدعومًا للتوافق.
+- الحقل `role` في المستخدم (القيم الحالية: `admin`, `user`, `viewer`).
+- حارس الأدوار `RolesGuard` ما زال مدعومًا للتوافق (سيصبح ثانوي لاحقًا أمام PermissionsGuard).
 - تمت إضافة نظام صلاحيات (Permissions) مبكر عبر:
-  - `Permission` enum في `auth/authorization/permissions.enum.ts`.
-  - مصفوفة ربط الأدوار `RolePermissions` (admin يمتلك جميع الصلاحيات؛ user يمتلك صلاحيات القراءة الأساسية فقط).
-  - ديكوريتر `@Permissions(...perms)` لإلزام endpoints بصلاحيات محددة.
-  - `PermissionsGuard` يتحقق من امتلاك الدور للصلاحيات المطلوبة.
+  - `Permission` enum في `auth/authorization/permissions.enum.ts` (يشمل tenant.*, user.*, farm.*, pond.*).
+  - مصفوفة ربط الأدوار `RolePermissions`:
+    - admin: جميع الصلاحيات (tenant CRUD, user read/write, farm CRUD, pond CRUD)
+    - user: قراءة التينانت + CRUD للمزارع والأحواض (مؤقتًا حتى تفعيل قيود أكثر دقة لاحقًا)
+    - viewer: قراءة فقط (tenant.read, farm.read, pond.read)
+  - ديكوريتر `@Permissions(...perms)` لإلزام endpoints بصلاحيات محددة (تم تطبيقه الآن على Tenants + Farms + Ponds).
+  - `PermissionsGuard` يتحقق من امتلاك الدور للصلاحيات المطلوبة ويعيد 403 مع قائمة الصلاحيات الناقصة.
+
+مصفوفة الصلاحيات الحالية (Snapshot):
+
+| Role   | tenant.read | tenant.create | tenant.update | tenant.delete | user.read | user.write | farm.read | farm.create | farm.update | farm.delete | pond.read | pond.create | pond.update | pond.delete |
+|--------|-------------|---------------|---------------|---------------|-----------|------------|-----------|-------------|-------------|-------------|-----------|-------------|-------------|-------------|
+| admin  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| user   | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| viewer | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+
+ملاحظات:
+
+1. صلاحيات user الحالية واسعة عمدًا لدعم التطوير السريع للـ CRUD؛ سيتم لاحقًا ضبطها (مثلاً تقييد delete أو ربط بالمالك).
+2. يمكن الانتقال إلى نموذج object-level permissions أو policy engine (مثل Casbin / OPA) عند توسع التعقيد.
+3. إضافة user.write مستقبلًا ستُستخدم لإدارة الحسابات (إعادة تعيين كلمة مرور، تعطيل مستخدم ...إلخ).
+4. عند إدخال RBAC ديناميكي: الحقول أعلاه ستُستبدل بقراءة من cache (in-memory + TTL) مبني على جداول DB.
 
 مثال (TenantsController):
 
@@ -275,13 +293,15 @@ create(@Body() dto: CreateTenantDto) { ... }
 
 السبب في الجمع بين @Roles و @Permissions الآن: الحفاظ على توافق المسارات الحالية مع الانتقال التدريجي لصيغة صلاحيات أكثر دقة لاحقًا (مثل `pond.read`, `farm.update`).
 
-خارطة طريق RBAC القادمة:
+خارطة طريق RBAC القادمة (مُحدثة):
 
-1. استخراج الأدوار والصلاحيات إلى جداول قاعدة بيانات (roles, role_permissions, user_roles) مع كاش داخلي.
-2. دعم تخصيص صلاحيات ديناميكي لكل تينانت (عقود Enterprise مستقبلية).
-3. إضافة صلاحيات granular لموارد: (farm.read, farm.write, pond.manage, water.read, notification.batch.mark, metrics.read).
-4. دعم Scopes في الـ JWT (exp: `scp`: ["tenant.read","farm.write"]).
-5. حارس مركّب يدمج (Tenant Isolation + Permission) في قرار واحد لمؤشرات أسهل للمراقبة.
+1. استخراج الأدوار والصلاحيات إلى جداول قاعدة بيانات (roles, permissions, role_permissions, user_roles) + كاش داخلي مع bust عند تحديث.
+2. تخصيص صلاحيات لكل تينانت (Tiered plans + Enterprise custom contracts).
+3. تضييق user إلى: (farm.read/create/update, pond.read/create/update) وحصر delete في admin/owner.
+4. إضافة water-quality.*, fish-batch.*, feeding-record.*, notification.* و metrics.read.
+5. دعم Scopes في الـ JWT (حقل scp) لواجهات خارجية أو Tokens مقيدة.
+6. حارس مركّب (CompositeGuard) يدمج Tenant + Permissions + Rate metadata لمؤشرات Prometheus.
+7. تدقيق أمني (Security Audit Log) لكل عمليات تمتلك صلاحيات حساسة (tenant.update, user.write, farm.delete, pond.delete).
 
 ملاحظات أمنية:
 
