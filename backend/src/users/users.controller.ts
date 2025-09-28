@@ -12,18 +12,22 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @Permissions('user.write')
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get()
+  @Permissions('user.read')
   findAll(@Request() req): any {
     const page = req.query?.page ? parseInt(String(req.query.page), 10) || 1 : 1;
     const limit = req.query?.limit
@@ -34,18 +38,21 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
+  @Permissions('user.read')
   findOne(@Param('id') id: string) {
     return this.usersService.findById(id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
+  @Permissions('user.write')
   update(@Param('id') id: string, @Body() updateUserDto: Partial<CreateUserDto>) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @Permissions('user.write')
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
