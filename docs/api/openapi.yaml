@@ -1,0 +1,1521 @@
+openapi: 3.0.3
+info:
+  title: AquaFarm Pro API
+  version: 0.2.0
+  description: |
+    Core service contract for AquaFarm Pro.
+
+    Included domains:
+      - Authentication (JWT issuance & profile)
+      - Multi‑tenancy (tenant creation / scoping)
+      - Farms & Ponds (infrastructure inventory)
+      - Water Quality (readings + trend analysis)
+      - Fish Batches (stocking, growth lifecycle)
+      - Feeding Records (nutrition tracking)
+      - Accounting (journal entry draft capability)
+
+    Notable design conventions:
+      - Pagination envelope: { data: T[], meta } (all list endpoints unified; legacy array root keys deprecated and scheduled for removal in v0.4.0)
+      - Standardized error responses via reusable components (ValidationError, UnauthorizedError, NotFoundError, ForbiddenError)
+      - Consistent 201 bodies & 204 for destructive deletes
+      - Examples supplied for major resource schemas & list responses
+
+    Change log highlights:
+      - 0.2.0: Added reusable list response components, standardized error $refs, multi-scenario water quality examples, enriched metadata.
+      - 0.1.0: Initial rebuilt contract after corruption (auth, tenants, farms, ponds, core water quality & fish batches).
+  termsOfService: https://example.com/terms
+  contact:
+    name: AquaFarm API Support
+    url: https://example.com/support
+    email: api-support@example.com
+  license:
+    name: UNLICENSED
+    url: https://example.com/license
+servers:
+  - url: https://api.aquafarm.local/v1
+    description: Staging
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication & token issuance
+  - name: Tenants
+    description: Tenant lifecycle & administration
+  - name: Farms
+    description: Farm management operations
+  - name: Ponds
+    description: Pond management operations (within a farm / tenant)
+  - name: Accounting
+    description: Journal entries & financial tracking
+  - name: WaterQuality
+    description: Water quality monitoring & trends
+  - name: FishBatches
+    description: Fish batch lifecycle (stocking, growth, harvest)
+  - name: Feeding
+    description: Feeding records and nutrition tracking
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Tenant:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        locale:
+          type: string
+    PaginationMeta:
+      type: object
+      description: Standard pagination metadata
+      properties:
+        total: { type: integer, description: Total number of items }
+        page: { type: integer, description: Current page number }
+        limit: { type: integer, description: Page size }
+        totalPages: { type: integer, description: Total number of pages }
+        hasNext: { type: boolean }
+        hasPrev: { type: boolean }
+      example:
+        total: 42
+        page: 1
+        limit: 10
+        totalPages: 5
+        hasNext: true
+        hasPrev: false
+    PaginatedList:
+      type: object
+      description: Generic paginated list envelope
+      properties:
+        data:
+          type: array
+          items: { type: object }
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    PagedPondList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Pond' }
+      example:
+        data:
+          - $ref: '#/components/schemas/Pond/example'
+        meta:
+          total: 1
+          page: 1
+          limit: 25
+          totalPages: 1
+          hasNext: false
+          hasPrev: false
+    PagedFarmList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Farm' }
+    PagedWaterQualityReadingList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WaterQualityReading' }
+    PagedUserList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedList'
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+    Pond:
+      type: object
+      description: Pond resource inside a farm.
+      required: [id, name, farmId, tenantId, area, depth, volume, maxCapacity]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        area: { type: number, format: float, description: Surface area (m²) }
+        depth: { type: number, format: float, description: Average depth (m) }
+        volume: { type: number, format: float, description: Volume (m³) }
+        maxCapacity: { type: integer, description: Maximum fish capacity }
+        currentStockCount: { type: integer, description: Current fish count }
+        shape: { type: string, enum: [rectangular, circular, irregular], default: rectangular }
+        status: { type: string, enum: [active, maintenance, inactive, cleaning], default: active }
+        equipment:
+          type: array
+          items: { type: string }
+          description: Installed equipment identifiers
+        coordinates:
+          type: object
+          nullable: true
+          properties:
+            latitude: { type: number, format: float }
+            longitude: { type: number, format: float }
+        notes: { type: string, nullable: true }
+        farmId: { type: string, format: uuid }
+        managedById: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        utilizationRate: { type: number, readOnly: true }
+        stockingDensity: { type: number, readOnly: true }
+        isOverstocked: { type: boolean, readOnly: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        tenant_id:
+          type: string
+          description: Deprecated alias for tenantId
+          deprecated: true
+      example:
+        id: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+        name: Growout Pond 3
+        description: Primary tilapia production pond
+        area: 1200
+        depth: 1.8
+        volume: 2160
+        maxCapacity: 8000
+        currentStockCount: 6200
+        shape: rectangular
+        status: active
+        equipment: ["aerator-01", "sensor-kit-07"]
+        coordinates:
+          latitude: 14.6234
+          longitude: 121.0123
+        notes: Weekly sampling on Mondays
+        farmId: "5a5935aa-fd8a-433e-9b6d-111b8e610001"
+        managedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+        tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+        utilizationRate: 0.78
+        stockingDensity: 5.17
+        isOverstocked: false
+        createdAt: "2025-09-01T10:15:30Z"
+        updatedAt: "2025-09-15T08:42:11Z"
+    Farm:
+      type: object
+      description: Farm / production site.
+      required: [id, name, ownerId, tenantId]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        location: { type: string }
+        totalArea: { type: number, format: float, nullable: true }
+        farmType: { type: string, enum: [marine, freshwater, brackish] }
+        status: { type: string, enum: [active, inactive, maintenance], default: active }
+        coordinates:
+          type: object
+          nullable: true
+          properties:
+            latitude: { type: number, format: float }
+            longitude: { type: number, format: float }
+        contactPhone: { type: string, nullable: true }
+        licenseNumber: { type: string, nullable: true }
+        facilities:
+          type: array
+          items: { type: string }
+        ownerId: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "9a2c2ff3-3d24-45a6-93e1-0f42c4bf1001"
+        name: Laguna Aquaculture Site
+        description: Mixed species pilot site
+        location: Laguna Province
+        totalArea: 4.5
+        farmType: freshwater
+        status: active
+        coordinates:
+          latitude: 14.2101
+          longitude: 121.3211
+        contactPhone: "+63-900-111-2222"
+        licenseNumber: FARM-2025-7788
+        facilities: ["hatchery", "warehouse", "feed-storage"]
+        ownerId: "b2b0a11e-1f44-4b55-9123-aa11ccff0001"
+        tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+        createdAt: "2025-09-01T09:00:00Z"
+        updatedAt: "2025-09-15T07:50:00Z"
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        tenantId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      example:
+        email: user@example.com
+        password: StrongP@ssw0rd!
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+      example:
+        access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh...
+    ErrorResponse:
+      type: object
+      description: Standard error envelope returned for non-2xx responses.
+      required: [error, message, code]
+      properties:
+        error:
+          type: string
+          description: High-level error name (e.g. ValidationError, NotFoundException)
+        message:
+          type: string
+          description: Human-readable description (not guaranteed stable for programmatic parsing)
+        statusCode:
+          type: integer
+          description: HTTP status code
+        code:
+          type: string
+          description: Stable machine-readable application error code
+          enum:
+            - INTERNAL_ERROR
+            - VALIDATION_ERROR
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - TENANT_NOT_FOUND
+            - TENANT_INACTIVE
+            - USER_NOT_FOUND
+            - EMAIL_ALREADY_EXISTS
+            - INVALID_CREDENTIALS
+            - FARM_NOT_FOUND
+            - POND_NOT_FOUND
+            - WATER_READING_NOT_FOUND
+            - FISH_BATCH_NOT_FOUND
+            - FEEDING_RECORD_NOT_FOUND
+            - ACCOUNT_NOT_FOUND
+            - JOURNAL_ENTRY_NOT_FOUND
+      example:
+        error: ValidationError
+        message: farmId must be a valid UUID
+        statusCode: 400
+        code: VALIDATION_ERROR
+    WaterQualityReading:
+      type: object
+      description: A single captured water quality reading for a pond.
+      required:
+        [id, pondId, temperature, ph, dissolvedOxygen, ammonia, nitrite, nitrate, status, recordedById, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        pondId: { type: string, format: uuid }
+        recordedById: { type: string, format: uuid }
+        temperature: { type: number, format: float, description: Water temperature in °C }
+        ph: { type: number, format: float }
+        dissolvedOxygen: { type: number, format: float, description: mg/L }
+        ammonia: { type: number, format: float, description: mg/L }
+        nitrite: { type: number, format: float, description: mg/L }
+        nitrate: { type: number, format: float, description: mg/L }
+        salinity: { type: number, format: float, nullable: true, description: ppt }
+        turbidity: { type: number, format: float, nullable: true, description: NTU }
+        alkalinity: { type: number, format: float, nullable: true }
+        hardness: { type: number, format: float, nullable: true }
+        readingMethod:
+          type: string
+          enum: [manual, automatic, sensor]
+          default: manual
+        notes: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [normal, warning, critical]
+          default: normal
+        alerts:
+          type: array
+          items: { type: string }
+          description: Machine-generated alert codes based on threshold analysis
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "c0b7d5e9-1fb8-41d9-b5bb-a9b5a0c00001"
+        pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+        recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+        temperature: 27.4
+        ph: 7.6
+        dissolvedOxygen: 6.8
+        ammonia: 0.02
+        nitrite: 0.01
+        nitrate: 10.5
+        salinity: null
+        turbidity: 4.2
+        alkalinity: 120
+        hardness: 150
+        readingMethod: sensor
+        notes: Morning reading
+        status: normal
+        alerts: []
+        createdAt: "2025-09-15T06:45:11Z"
+        updatedAt: "2025-09-15T06:45:11Z"
+      x-examples:
+        normal:
+          summary: All parameters within target thresholds
+          value:
+            id: "c0b7d5e9-1fb8-41d9-b5bb-a9b5a0c00001"
+            pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+            recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+            temperature: 27.4
+            ph: 7.6
+            dissolvedOxygen: 6.8
+            ammonia: 0.02
+            nitrite: 0.01
+            nitrate: 10.5
+            status: normal
+            alerts: []
+            createdAt: "2025-09-15T06:45:11Z"
+            updatedAt: "2025-09-15T06:45:11Z"
+        warning:
+            summary: Dissolved oxygen trending low
+            value:
+              id: "d1d2e3f4-2fb8-41d9-b5bb-a9b5a0c00002"
+              pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+              recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+              temperature: 29.1
+              ph: 7.4
+              dissolvedOxygen: 4.5
+              ammonia: 0.03
+              nitrite: 0.02
+              nitrate: 14.2
+              status: warning
+              alerts: ["LOW_DO_TREND"]
+              createdAt: "2025-09-15T12:15:22Z"
+              updatedAt: "2025-09-15T12:15:22Z"
+        critical:
+            summary: Multiple critical thresholds exceeded
+            value:
+              id: "e2e3f4a5-2fb8-41d9-b5bb-a9b5a0c00003"
+              pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+              recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+              temperature: 31.0
+              ph: 6.5
+              dissolvedOxygen: 3.2
+              ammonia: 0.20
+              nitrite: 0.10
+              nitrate: 40.0
+              status: critical
+              alerts: ["LOW_DO_CRITICAL", "AMMONIA_HIGH", "NITRITE_HIGH"]
+              createdAt: "2025-09-15T14:30:05Z"
+              updatedAt: "2025-09-15T14:30:05Z"
+    CreateWaterQualityReadingRequest:
+      type: object
+      required: [pondId, temperature, ph, dissolvedOxygen, ammonia, nitrite, nitrate]
+      properties:
+        pondId: { type: string, format: uuid }
+        temperature: { type: number }
+        ph: { type: number }
+        dissolvedOxygen: { type: number }
+        ammonia: { type: number }
+        nitrite: { type: number }
+        nitrate: { type: number }
+        salinity: { type: number, nullable: true }
+        turbidity: { type: number, nullable: true }
+        alkalinity: { type: number, nullable: true }
+        hardness: { type: number, nullable: true }
+        readingMethod: { type: string, enum: [manual, automatic, sensor] }
+        notes: { type: string, nullable: true }
+    FishBatch:
+      type: object
+      required: [id, batchNumber, species, initialCount, currentCount, averageWeight, totalBiomass, stockingDate, status, pondId]
+      properties:
+        id: { type: string, format: uuid }
+        batchNumber: { type: string }
+        species: { type: string }
+        variety: { type: string, nullable: true }
+        initialCount: { type: integer }
+        currentCount: { type: integer }
+        averageWeight: { type: number, format: float, description: grams }
+        totalBiomass: { type: number, format: float, description: kilograms }
+        stockingDate: { type: string, format: date-time }
+        expectedHarvestDate: { type: string, format: date-time, nullable: true }
+        actualHarvestDate: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [active, harvested, partial_harvest, dead] }
+        survivalRate: { type: number, nullable: true }
+        feedConversionRatio: { type: number, nullable: true }
+        targetWeight: { type: number, nullable: true }
+        supplier: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        healthStatus:
+          type: object
+          nullable: true
+          properties:
+            diseases: { type: array, items: { type: string } }
+            treatments: { type: array, items: { type: string } }
+            mortality: { type: number }
+        pondId: { type: string, format: uuid }
+        managedById: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "bf2ba7b5-6c9e-4c4b-b2a2-df02b0000001"
+        batchNumber: BATCH-2025-0915-01
+        species: Oreochromis niloticus
+        variety: Red Tilapia
+        initialCount: 7000
+        currentCount: 6800
+        averageWeight: 180
+        totalBiomass: 1224
+        stockingDate: "2025-06-10T09:00:00Z"
+        expectedHarvestDate: "2025-12-01T09:00:00Z"
+        actualHarvestDate: null
+        status: active
+        survivalRate: 0.97
+        feedConversionRatio: 1.45
+        targetWeight: 350
+        supplier: HatcheryCo
+        notes: Good growth trend
+        healthStatus:
+          diseases: []
+          treatments: []
+          mortality: 50
+        pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+        managedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+        tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+        createdAt: "2025-06-10T09:00:00Z"
+        updatedAt: "2025-09-15T07:20:00Z"
+    CreateFishBatchRequest:
+      type: object
+      required: [batchNumber, species, initialCount, averageWeight, pondId]
+      properties:
+        batchNumber: { type: string }
+        species: { type: string }
+        variety: { type: string, nullable: true }
+        initialCount: { type: integer }
+        averageWeight: { type: number }
+        pondId: { type: string, format: uuid }
+        stockingDate: { type: string, format: date-time, nullable: true }
+        expectedHarvestDate: { type: string, format: date-time, nullable: true }
+    UpdateFishBatchRequest:
+      type: object
+      properties:
+        status: { type: string }
+        currentCount: { type: integer }
+        averageWeight: { type: number }
+        totalBiomass: { type: number }
+        expectedHarvestDate: { type: string, format: date-time }
+        actualHarvestDate: { type: string, format: date-time }
+        targetWeight: { type: number }
+        notes: { type: string }
+    FeedingRecord:
+      type: object
+      required: [id, fishBatchId, feedAmount, feedType, feedingTime]
+      properties:
+        id: { type: string, format: uuid }
+        fishBatchId: { type: string, format: uuid }
+        feedAmount: { type: number, format: float, description: kilograms }
+        feedType: { type: string }
+        feedBrand: { type: string, nullable: true }
+        proteinPercentage: { type: number, nullable: true }
+        feedingMethod: { type: string, enum: [manual, automatic], default: manual }
+        feedingTime: { type: string, description: 'HH:mm:ss' }
+        waterTemperature: { type: number, nullable: true }
+        weatherConditions: { type: string, nullable: true }
+        fishAppetite: { type: string, enum: [good, moderate, poor], default: good }
+        notes: { type: string, nullable: true }
+        cost: { type: number, nullable: true }
+        recordedById: { type: string, format: uuid, nullable: true }
+        tenantId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+      example:
+        id: "ddc31c1e-857c-4a7a-8d9c-0b8f50000001"
+        fishBatchId: "bf2ba7b5-6c9e-4c4b-b2a2-df02b0000001"
+        feedAmount: 18.5
+        feedType: Grower Pellet
+        feedBrand: AquaFeed Pro 32%
+        proteinPercentage: 32
+        feedingMethod: automatic
+        feedingTime: "09:30:00"
+        waterTemperature: 27.1
+        weatherConditions: Overcast
+        fishAppetite: good
+        notes: Slightly reduced appetite previous day
+        cost: 42.75
+        recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+        tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+        createdAt: "2025-09-15T09:35:00Z"
+    CreateFeedingRecordRequest:
+      type: object
+      required: [fishBatchId, feedAmount, feedType, feedingTime]
+      properties:
+        fishBatchId: { type: string, format: uuid }
+        feedAmount: { type: number }
+        feedType: { type: string }
+        feedBrand: { type: string, nullable: true }
+        proteinPercentage: { type: number, nullable: true }
+        feedingMethod: { type: string, enum: [manual, automatic] }
+        feedingTime: { type: string, description: 'HH:mm:ss' }
+        waterTemperature: { type: number, nullable: true }
+        weatherConditions: { type: string, nullable: true }
+        fishAppetite: { type: string, enum: [good, moderate, poor], nullable: true }
+        notes: { type: string, nullable: true }
+        cost: { type: number, nullable: true }
+    PaginatedFishBatchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/FishBatch' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PaginatedFeedingRecordResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/FeedingRecord' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PaginatedPondResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Pond' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PaginatedFarmResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Farm' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PaginatedUserResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PaginatedWaterQualityReadingResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WaterQualityReading' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+  parameters:
+    XTenantIdHeader:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: Tenant code or UUID for scoping requests
+      schema: { type: string }
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      description: |
+        Page number (1-based). If the requested page exceeds the last page, the server clamps it to the last available page and returns that page's meta (no error raised).
+      schema: { type: integer, minimum: 1, default: 1 }
+    PondIdQuery:
+      name: pondId
+      in: query
+      required: false
+      description: Filter readings by pond ID
+      schema: { type: string, format: uuid }
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: |
+        Page size (items per page). Values > 100 are capped to 100. Values < 1 are normalized to 1. Default varies by endpoint (commonly 25).
+      schema: { type: integer, minimum: 1, maximum: 100 }
+    DaysQuery:
+      name: days
+      in: query
+      required: false
+      description: Number of past days to analyze (default 7)
+      schema: { type: integer, minimum: 1, maximum: 90 }
+  responses:
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PondListResponse:
+      description: Paginated list of ponds
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedPondResponse'
+          example:
+            data:
+              - id: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+                name: Growout Pond 3
+                area: 1200
+                depth: 1.8
+                volume: 2160
+                maxCapacity: 8000
+                currentStockCount: 6200
+                shape: rectangular
+                status: active
+                farmId: "5a5935aa-fd8a-433e-9b6d-111b8e610001"
+                tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+                createdAt: "2025-09-01T10:15:30Z"
+                updatedAt: "2025-09-15T08:42:11Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+    FishBatchListResponse:
+      description: Paginated list of fish batches
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedFishBatchResponse'
+          example:
+            data:
+              - id: "bf2ba7b5-6c9e-4c4b-b2a2-df02b0000001"
+                batchNumber: BATCH-2025-0915-01
+                species: Oreochromis niloticus
+                initialCount: 7000
+                currentCount: 6800
+                averageWeight: 180
+                totalBiomass: 1224
+                stockingDate: "2025-06-10T09:00:00Z"
+                status: active
+                pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+                createdAt: "2025-06-10T09:00:00Z"
+                updatedAt: "2025-09-15T07:20:00Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+    WaterQualityReadingListResponse:
+      description: Paginated list of water quality readings
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedWaterQualityReadingResponse'
+          example:
+            data:
+              - id: "c0b7d5e9-1fb8-41d9-b5bb-a9b5a0c00001"
+                pondId: "e6d0d8a2-5c2f-4ca2-8b6b-1d9f6b6e9a11"
+                temperature: 27.4
+                ph: 7.6
+                dissolvedOxygen: 6.8
+                ammonia: 0.02
+                nitrite: 0.01
+                nitrate: 10.5
+                status: normal
+                alerts: []
+                recordedById: "c4f0b5c1-8ff1-43e2-9e09-4321a2f90001"
+                createdAt: "2025-09-15T06:45:11Z"
+                updatedAt: "2025-09-15T06:45:11Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+    FarmListResponse:
+      description: Paginated list of farms
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedFarmResponse'
+          example:
+            data:
+              - id: "9a2c2ff3-3d24-45a6-93e1-0f42c4bf1001"
+                name: Laguna Aquaculture Site
+                location: Laguna Province
+                farmType: freshwater
+                status: active
+                tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+                ownerId: "b2b0a11e-1f44-4b55-9123-aa11ccff0001"
+                createdAt: "2025-09-01T09:00:00Z"
+                updatedAt: "2025-09-15T07:50:00Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+    UserListResponse:
+      description: Paginated list of users
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedUserResponse'
+          example:
+            data:
+              - id: "11111111-2222-3333-4444-555555555555"
+                name: Admin User
+                email: admin@aquafarm.local
+                role: admin
+                tenantId: "92f7c9f0-1111-4c52-a5cd-9a11e3b90001"
+                createdAt: "2025-09-01T09:00:00Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+    FeedingRecordListResponse:
+      description: Paginated list of feeding records
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaginatedFeedingRecordResponse'
+          example:
+            data:
+              - id: "ddc31c1e-857c-4a7a-8d9c-0b8f50000001"
+                fishBatchId: "bf2ba7b5-6c9e-4c4b-b2a2-df02b0000001"
+                feedAmount: 18.5
+                feedType: Grower Pellet
+                feedingMethod: automatic
+                feedingTime: "09:30:00"
+                createdAt: "2025-09-15T09:35:00Z"
+            meta:
+              total: 1
+              page: 1
+              limit: 10
+              totalPages: 1
+              hasNext: false
+              hasPrev: false
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and obtain JWT pair
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid credentials / validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user (assigns default tenant if not provided)
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /auth/profile:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user profile
+      operationId: getProfile
+      responses:
+        '200':
+          description: Profile returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /tenants:
+    get:
+      tags: [Tenants]
+      summary: List tenants (admin scope)
+      operationId: listTenants
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [Tenants]
+      summary: Create tenant
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                locale:
+                  type: string
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+  /ponds:
+    get:
+      tags: [Ponds]
+      summary: List ponds for current tenant
+      operationId: listPonds
+      parameters:
+        - $ref: '#/components/parameters/XTenantIdHeader'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200': { $ref: '#/components/responses/PondListResponse' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Ponds]
+      summary: Create pond
+      operationId: createPond
+      parameters:
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [farmId, name, area, depth, maxCapacity]
+              properties:
+                farmId: { type: string, format: uuid }
+                name: { type: string }
+                area: { type: number }
+                depth: { type: number }
+                maxCapacity: { type: integer }
+                shape: { type: string }
+      responses:
+        '201':
+          description: Pond created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pond'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /ponds/{id}:
+    get:
+      tags: [Ponds]
+      summary: Get pond by id
+      operationId: getPond
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      responses:
+        '200':
+          description: Pond details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pond'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [Ponds]
+      summary: Update pond
+      operationId: updatePond
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                area: { type: number }
+                depth: { type: number }
+                maxCapacity: { type: integer }
+                status: { type: string }
+      responses:
+        '200': { description: Pond updated }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Ponds]
+      summary: Delete pond
+      operationId: deletePond
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      responses:
+        '204': { description: Pond deleted }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /farms:
+    get:
+      tags: [Farms]
+      summary: List farms for current tenant (or all for admin with ?all=true)
+      operationId: listFarms
+      parameters:
+        - name: all
+          in: query
+          required: false
+          schema:
+            type: string
+          description: If 'true' and user role=admin returns all farms for tenant
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200': { $ref: '#/components/responses/FarmListResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [Farms]
+      summary: Create farm (scoped to tenant / sets owner to current user)
+      operationId: createFarm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '201':
+          description: Farm created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+  /farms/{id}:
+    get:
+      tags: [Farms]
+      summary: Get farm by id (scoped by tenant)
+      operationId: getFarm
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Farm details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [Farms]
+      summary: Update farm (must own unless admin)
+      operationId: updateFarm
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '200':
+          description: Farm updated
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Farms]
+      summary: Delete farm (must own unless admin)
+      operationId: deleteFarm
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Farm deleted
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /farms/{id}/stats:
+    get:
+      tags: [Farms]
+      summary: Retrieve aggregate statistics for a farm
+      operationId: getFarmStats
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Farm statistics returned
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /journal-entries:
+    post:
+      tags: [Accounting]
+      summary: Create journal entry with lines
+      operationId: createJournalEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                reference:
+                  type: string
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [account, amount]
+                    properties:
+                      account:
+                        type: string
+                      amount:
+                        type: number
+                        format: float
+                      description:
+                        type: string
+      responses:
+        '201':
+          description: Journal entry created
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+  /users:
+    get:
+      tags: [Auth]
+      summary: List users (scoped to tenant unless admin)
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200': { $ref: '#/components/responses/UserListResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [Auth]
+      summary: Create user (admin only in future; currently open for internal bootstrap/testing)
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string }
+                role: { type: string }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}:
+    get:
+      tags: [Auth]
+      summary: Get user by id
+      operationId: getUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [Auth]
+      summary: Update user by id
+      operationId: updateUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                role: { type: string }
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Auth]
+      summary: Delete user by id
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: User deleted }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /water-quality:
+    get:
+      tags: [WaterQuality]
+      summary: List recent water quality readings
+      operationId: listWaterQualityReadings
+      parameters:
+        - $ref: '#/components/parameters/PondIdQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      responses:
+        '200': { $ref: '#/components/responses/WaterQualityReadingListResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [WaterQuality]
+      summary: Create a water quality reading (auto-analyzes alerts)
+      operationId: createWaterQualityReading
+      parameters:
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWaterQualityReadingRequest'
+      responses:
+        '201':
+          description: Reading created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaterQualityReading'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+  /water-quality/{id}:
+    get:
+      tags: [WaterQuality]
+      summary: Get a single water quality reading
+      operationId: getWaterQualityReading
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      responses:
+        '200':
+          description: Reading details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaterQualityReading'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /water-quality/trends/{pondId}:
+    get:
+      tags: [WaterQuality]
+      summary: Analyze trends for a pond over a time window
+      operationId: getWaterQualityTrends
+      parameters:
+        - name: pondId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/DaysQuery'
+        - $ref: '#/components/parameters/XTenantIdHeader'
+      responses:
+        '200': { description: Trend analysis returned }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /water-quality/test/mock:
+    get:
+      tags: [WaterQuality]
+      summary: Return mock readings sample (development/testing only)
+      operationId: getMockWaterQualityReadings
+      responses:
+        '200': { description: Mock readings returned }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /fish-batches:
+    get:
+      tags: [FishBatches]
+      summary: List fish batches (paginated)
+      operationId: listFishBatches
+      parameters:
+        - name: pondId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+        - name: search
+          in: query
+          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 10 }
+      responses:
+        '200': { $ref: '#/components/responses/FishBatchListResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [FishBatches]
+      summary: Create fish batch
+      operationId: createFishBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFishBatchRequest'
+      responses:
+        '201':
+          description: Fish batch created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishBatch'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+  /fish-batches/{id}:
+    get:
+      tags: [FishBatches]
+      summary: Get fish batch by id
+      operationId: getFishBatch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Fish batch details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishBatch'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [FishBatches]
+      summary: Update fish batch
+      operationId: updateFishBatch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFishBatchRequest'
+      responses:
+        '200': { description: Fish batch updated }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [FishBatches]
+      summary: Delete fish batch
+      operationId: deleteFishBatch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Fish batch deleted }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /feeding-records:
+    get:
+      tags: [Feeding]
+      summary: List feeding records (paginated)
+      operationId: listFeedingRecords
+      parameters:
+        - name: fishBatchId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 10 }
+      responses:
+        '200': { $ref: '#/components/responses/FeedingRecordListResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      tags: [Feeding]
+      summary: Create feeding record
+      operationId: createFeedingRecord
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeedingRecordRequest'
+      responses:
+        '201':
+          description: Feeding record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedingRecord'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }

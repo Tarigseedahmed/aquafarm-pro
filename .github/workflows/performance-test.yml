@@ -1,0 +1,96 @@
+name: Performance Testing
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Weekly on Sunday at 3 AM
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'load'
+        type: choice
+        options:
+          - load
+          - stress
+          - spike
+          - volume
+      duration:
+        description: 'Test duration in minutes'
+        required: false
+        default: '5'
+        type: string
+
+jobs:
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Start Test Environment
+        run: |
+          echo "Starting test environment..."
+          # Start the application in test mode
+          npm run start:test &
+          sleep 30
+          echo "Test environment started"
+
+      - name: Run k6 Performance Tests
+        run: |
+          echo "Running k6 performance tests..."
+          # Install k6
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+          
+          # Run performance tests
+          k6 run --duration=${DURATION}m tests/performance/load-test.js
+          echo "Performance tests completed"
+
+      - name: Generate Performance Report
+        run: |
+          echo "Generating performance report..."
+          echo "# Performance Test Report" > performance-report.md
+          echo "Date: $(date)" >> performance-report.md
+          echo "Test Type: ${{ github.event.inputs.test_type }}" >> performance-report.md
+          echo "Duration: ${{ github.event.inputs.duration }} minutes" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "## Test Results" >> performance-report.md
+          echo "- Response Time: < 300ms (target)" >> performance-report.md
+          echo "- Throughput: > 1000 req/s (target)" >> performance-report.md
+          echo "- Error Rate: < 1% (target)" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "## Recommendations" >> performance-report.md
+          echo "1. Monitor database query performance" >> performance-report.md
+          echo "2. Implement caching strategies" >> performance-report.md
+          echo "3. Optimize API endpoints" >> performance-report.md
+          echo "4. Consider horizontal scaling" >> performance-report.md
+
+      - name: Upload Performance Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: performance-report.md
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up test environment..."
+          # Stop the test application
+          pkill -f "npm run start:test" || true
+          echo "Cleanup completed"

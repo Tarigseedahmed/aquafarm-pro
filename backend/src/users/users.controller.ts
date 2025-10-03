@@ -1,0 +1,112 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  HttpCode,
+} from '@nestjs/common';
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { throwForbidden } from '../common/errors/forbidden.util';
+import { ApiPaginatedResponse } from '../common/pagination/pagination.decorator';
+import { ApiExtraModels } from '@nestjs/swagger';
+import { User } from './entities/user.entity';
+import { ApiStandardErrorResponses } from '../common/errors/error-responses.decorator';
+
+@ApiExtraModels(User)
+@Controller('users')
+@UseGuards(PermissionsGuard)
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @Permissions('user.write')
+  @ApiStandardErrorResponses()
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  @ApiPaginatedResponse(User, { description: 'List users (paginated)' })
+  @Permissions('user.read')
+  @ApiStandardErrorResponses()
+  findAll(@Request() req): any {
+    const page = req.query?.page ? parseInt(String(req.query.page), 10) || 1 : 1;
+    const limit = req.query?.limit
+      ? Math.min(parseInt(String(req.query.limit), 10) || 25, 100)
+      : 25;
+    return this.usersService.findAll({ role: req.user.role, tenantId: req.tenantId }, page, limit);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  @Permissions('user.read')
+  @ApiStandardErrorResponses()
+  findOne(@Param('id') id: string) {
+    return this.usersService.findById(id);
+  }
+
+  // Self profile without needing global user.read permission.
+  @UseGuards(JwtAuthGuard)
+  @Get('me/profile')
+  getSelf(@Request() req) {
+    return this.usersService.findById(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  @Permissions('user.write')
+  @ApiStandardErrorResponses()
+  update(@Param('id') id: string, @Body() updateUserDto: Partial<CreateUserDto>, @Request() req) {
+    // Object-level rule: allow if admin or self
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      const routePath = req.route?.path || req.originalUrl || 'unknown';
+      throwForbidden({
+        message: 'Cannot modify other users',
+        required: ['admin OR self'],
+        granted: [req.user.role],
+        missing: ['ownership'],
+        reason: 'ownership',
+        route: routePath,
+        metrics: req.app?.get?.('MetricsService') || undefined,
+      });
+    }
+    return this.usersService.update(id, updateUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  @Permissions('user.write')
+  @HttpCode(204)
+  @ApiStandardErrorResponses()
+  remove(@Param('id') id: string, @Request() req) {
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      const routePath = req.route?.path || req.originalUrl || 'unknown';
+      throwForbidden({
+        message: 'Cannot delete other users',
+        required: ['admin OR self'],
+        granted: [req.user.role],
+        missing: ['ownership'],
+        reason: 'ownership',
+        route: routePath,
+        metrics: req.app?.get?.('MetricsService') || undefined,
+      });
+    }
+    return this.usersService.remove(id); // no content
+  }
+
+  @Get('test/mock')
+  getMockUsers() {
+    return this.usersService.createMockUsers();
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "connector": {
+    "name": "local"
+  },
+  "formatters": ["html"],
+  "hints": {
+    "no-inline-styles": "off"
+  }
+}

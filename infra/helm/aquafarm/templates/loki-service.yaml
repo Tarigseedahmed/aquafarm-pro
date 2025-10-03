@@ -1,0 +1,19 @@
+{{- if .Values.monitoring.loki.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-loki
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3100
+      targetPort: 3100
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "aquafarm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: loki
+{{- end }}

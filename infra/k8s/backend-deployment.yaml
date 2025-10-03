@@ -1,0 +1,238 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: aquafarm-pro
+  labels:
+    app: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/your-username/aquafarm-pro-backend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: PORT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: LOG_LEVEL
+        - name: LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: LOG_FORMAT
+        - name: DB_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_TYPE
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: aquafarm-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: aquafarm-secrets
+              key: DB_PASSWORD
+        - name: DB_SSL
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_SSL
+        - name: DB_SSL_REJECT_UNAUTHORIZED
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: DB_SSL_REJECT_UNAUTHORIZED
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: REDIS_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aquafarm-secrets
+              key: JWT_SECRET
+        - name: JWT_ACCESS_TOKEN_EXPIRES_IN
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: JWT_ACCESS_TOKEN_EXPIRES_IN
+        - name: JWT_REFRESH_TOKEN_EXPIRES_IN
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: JWT_REFRESH_TOKEN_EXPIRES_IN
+        - name: BCRYPT_SALT_ROUNDS
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: BCRYPT_SALT_ROUNDS
+        - name: CORS_ORIGIN
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: CORS_ORIGIN
+        - name: THROTTLE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: THROTTLE_TTL
+        - name: THROTTLE_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: THROTTLE_LIMIT
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: METRICS_ENABLED
+        - name: HEALTH_CHECK_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: HEALTH_CHECK_ENABLED
+        - name: MAX_FILE_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: MAX_FILE_SIZE
+        - name: UPLOAD_DEST
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: UPLOAD_DEST
+        - name: CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: CACHE_TTL
+        - name: CACHE_MAX_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: aquafarm-config
+              key: CACHE_MAX_SIZE
+        volumeMounts:
+        - name: uploads-storage
+          mountPath: /app/uploads
+        - name: logs-storage
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 30
+      volumes:
+      - name: uploads-storage
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+      - name: logs-storage
+        persistentVolumeClaim:
+          claimName: logs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: aquafarm-pro
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: aquafarm-pro
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: gp2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logs-pvc
+  namespace: aquafarm-pro
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp2

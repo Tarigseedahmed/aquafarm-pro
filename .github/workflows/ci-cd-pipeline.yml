@@ -1,0 +1,406 @@
+name: AquaFarm Pro CI/CD Pipeline
+
+# ⚠️ Linter Warnings Explained:
+# You may see warnings like "Context access might be invalid: SONAR_TOKEN"
+# These are INFORMATIONAL ONLY and indicate that secrets need to be configured in:
+# Settings > Secrets and variables > Actions
+#
+# See .github/SECRETS_CONFIGURATION.md for detailed setup instructions
+# The workflow will run but skip steps that require missing secrets
+#
+# 🔧 Required Secrets Configuration:
+# - SONAR_TOKEN: SonarCloud authentication token
+# - STAGING_HOST, STAGING_USER, STAGING_SSH_KEY: Staging deployment credentials
+# - PRODUCTION_HOST, PRODUCTION_USER, PRODUCTION_SSH_KEY: Production deployment credentials
+# - SLACK_WEBHOOK: Slack notification webhook URL
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+  schedule:
+    - cron: '0 2 * * 1' # تشغيل CodeQL أسبوعياً (كل اثنين الساعة 2 صباحاً)
+
+permissions:
+  contents: read
+  security-events: write
+  packages: write
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Code Quality and Security Checks
+  quality-checks:
+    name: Quality & Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Run ESLint
+        run: |
+          cd backend && npm run lint
+          cd ../frontend && npm run lint
+
+      - name: Run Prettier check
+        run: |
+          cd backend && npm run format:check
+          cd ../frontend && npm run format:check
+
+      - name: Run TypeScript check
+        run: |
+          cd backend && npm run type-check
+          cd ../frontend && npm run type-check
+
+      - name: Security audit (non-blocking)
+        run: |
+          cd backend && npm audit --audit-level=high || true
+          cd ../frontend && npm audit --audit-level=high || true
+
+      - name: SonarCloud Scan
+        # Required secret: SONAR_TOKEN (configure in repository settings)
+        continue-on-error: true
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # Weekly CodeQL Scan
+  codeql-scan:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, typescript
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # Backend Tests
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: cd backend && npm ci
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          npm run migration:run
+        env:
+          NODE_ENV: test
+          DB_TYPE: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+
+      - name: Run unit tests
+        run: cd backend && npm run test
+        env:
+          NODE_ENV: test
+          DB_TYPE: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+
+      - name: Run integration tests
+        run: cd backend && npm run test:e2e
+        env:
+          NODE_ENV: test
+          DB_TYPE: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+
+      - name: Generate test coverage
+        run: cd backend && npm run test:cov
+        env:
+          NODE_ENV: test
+          DB_TYPE: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+
+  # Frontend Tests
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run unit tests
+        run: cd frontend && npm run test
+        env:
+          CI: true
+
+      - name: Run integration tests
+        run: cd frontend && npm run test:e2e
+        env:
+          CI: true
+
+      - name: Generate test coverage
+        run: cd frontend && npm run test:cov
+        env:
+          CI: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
+  # Build and Test Docker Images
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [quality-checks, backend-tests, frontend-tests]
+    if: github.event_name == 'push' || github.event_name == 'release'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.optimized
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.production
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.event_name == 'push' || github.event_name == 'release'
+    steps:
+      - name: Run Trivy scan (backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend.sarif'
+
+      - name: Run Trivy scan (frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-frontend.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-backend.sarif'
+
+  # Deploy to Staging
+  # Required secrets: STAGING_HOST, STAGING_USER, STAGING_SSH_KEY
+  # Configure these secrets in: Settings > Secrets and variables > Actions
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker-build, security-scan]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+    steps:
+      - name: Deploy to staging
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/aquafarm-pro
+            git pull origin develop
+            docker-compose -f docker-compose.staging.yml pull
+            docker-compose -f docker-compose.staging.yml up -d
+            ./scripts/health-check.sh
+            docker system prune -f
+
+  # Deploy to Production
+  # Required secrets: PRODUCTION_HOST, PRODUCTION_USER, PRODUCTION_SSH_KEY
+  # Configure these secrets in: Settings > Secrets and variables > Actions
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [docker-build, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Create backup
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd /opt/aquafarm-pro
+            ./scripts/backup.sh
+
+      - name: Deploy to production
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd /opt/aquafarm-pro
+            git pull origin main
+            docker-compose -f docker-compose.production.yml pull
+            docker-compose -f docker-compose.production.yml up -d --no-deps backend
+            ./scripts/wait-for-backend.sh
+            docker-compose -f docker-compose.production.yml up -d
+            docker system prune -f
+            ./scripts/health-check.sh
+
+  # Notify on failure
+  # Required secret: SLACK_WEBHOOK (configure in repository settings)
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [quality-checks, backend-tests, frontend-tests, docker-build, security-scan, deploy-staging, deploy-production]
+    if: failure()
+    steps:
+      - name: Notify Slack on failure
+        continue-on-error: true
+        uses: 8398a7/action-slack@v3
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+        with:
+          status: failure
+          channel: '#deployments'
+          fields: repo,message,commit,author,action,eventName,ref,workflow

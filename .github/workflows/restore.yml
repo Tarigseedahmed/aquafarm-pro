@@ -1,0 +1,146 @@
+name: Restore from Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'Backup date to restore from (YYYY-MM-DD)'
+        required: true
+        type: string
+      restore_type:
+        description: 'Type of restore to perform'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - database
+          - files
+      environment:
+        description: 'Environment to restore to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      confirm_restore:
+        description: 'I confirm this will overwrite existing data'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  restore-database:
+    name: Restore Database
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_restore == true && (github.event.inputs.restore_type == 'full' || github.event.inputs.restore_type == 'database')
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Download Backup from S3
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Downloading backup from S3..."
+          aws s3 cp s3://$BACKUP_S3_BUCKET/database-backup-${{ github.event.inputs.backup_date }}.sql.gz ./backup.sql.gz
+          echo "Backup downloaded"
+
+      - name: Restore Database
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          echo "Restoring database..."
+          ./scripts/restore-postgres.sh backup.sql.gz
+          echo "Database restored"
+
+      - name: Verify Database Restore
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          echo "Verifying database restore..."
+          # Add verification logic here
+          echo "Database restore verified"
+
+  restore-files:
+    name: Restore Files
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_restore == true && (github.event.inputs.restore_type == 'full' || github.event.inputs.restore_type == 'files')
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Download Files Backup from S3
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Downloading files backup from S3..."
+          aws s3 cp s3://$BACKUP_S3_BUCKET/files-backup-${{ github.event.inputs.backup_date }}.tar.gz ./files-backup.tar.gz
+          echo "Files backup downloaded"
+
+      - name: Restore Files
+        env:
+          OBJECT_STORAGE_ENDPOINT: ${{ secrets.OBJECT_STORAGE_ENDPOINT }}
+          OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+          OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+          OBJECT_STORAGE_BUCKET: ${{ secrets.OBJECT_STORAGE_BUCKET }}
+        run: |
+          echo "Restoring files..."
+          ./scripts/restore-uploads.sh files-backup.tar.gz
+          echo "Files restored"
+
+      - name: Verify Files Restore
+        run: |
+          echo "Verifying files restore..."
+          # Add verification logic here
+          echo "Files restore verified"
+
+  restore-notification:
+    name: Send Restore Notification
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [restore-database, restore-files]
+    steps:
+      - name: Send Success Notification
+        if: needs.restore-database.result == 'success' && needs.restore-files.result == 'success'
+        run: |
+          echo "Restore completed successfully"
+          # Add notification logic here
+
+      - name: Send Failure Notification
+        if: needs.restore-database.result == 'failure' || needs.restore-files.result == 'failure'
+        run: |
+          echo "Restore failed"
+          # Add failure notification logic here

@@ -1,0 +1,44 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart TB
+  subgraph Tenancy
+    TEN((tenants))
+  end
+  subgraph IAM
+    USR((users))
+    ROL((roles))
+    PRM((permissions))
+  end
+  subgraph Farm
+    PND((ponds))
+    CYC((production_cycles))
+    MSR((fish_batch_measurements))
+    FED((feeds))
+    INV((inventory_transactions))
+    WTR((water_quality_readings))
+    DEV((iot_devices))
+  end
+  subgraph Accounting
+    ACC((accounts))
+    JEN((journal_entries))
+    JLN((journal_lines))
+    INVB((invoices))
+    PUR((purchases))
+  end
+
+  TEN --> USR
+  TEN --> ROL
+  ROL --> PRM
+  TEN --> PND
+  PND --> CYC
+  CYC --> MSR
+  TEN --> FED
+  TEN --> INV
+  PND --> WTR
+  TEN --> DEV
+  TEN --> ACC
+  ACC --> JEN --> JLN
+  TEN --> INVB
+  TEN --> PUR
+
+  classDef tbl fill:#fff,stroke:#333,stroke-width:1px;
+  class TEN,USR,ROL,PRM,PND,CYC,MSR,FED,INV,WTR,DEV,ACC,JEN,JLN,INVB,PUR tbl;

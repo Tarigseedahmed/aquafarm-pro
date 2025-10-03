@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: aquafarm-backend
+    metrics_path: /_metrics
+    scheme: https
+    static_configs:
+      - targets: [ 'api.aquafarm.cloud' ]
+
+

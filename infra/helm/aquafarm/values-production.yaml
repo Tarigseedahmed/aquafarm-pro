@@ -1,0 +1,167 @@
+# Production environment values for aquafarm
+# This overrides values.yaml for production deployment
+
+environment: production
+
+# Backend configuration for production
+backend:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: "info"
+    ENABLE_LOGGING: "true"
+
+# Frontend configuration for production
+frontend:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# PostgreSQL for production (high availability)
+postgresql:
+  enabled: false
+  primary:
+    persistence:
+      size: 100Gi
+      storageClass: "gp3"
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+# Redis for production
+redis:
+  master:
+    persistence:
+      size: 20Gi
+      storageClass: "gp3"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# Monitoring for production (enabled)
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: true
+        size: 50Gi
+        storageClass: "gp3"
+      
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+  
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "gp3"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# Ingress for production
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  
+  hosts:
+    - host: aquafarm.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 3000
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 3000
+        - path: /_metrics
+          pathType: Prefix
+          service:
+            name: backend
+            port: 3000
+  
+  tls:
+    - secretName: aquafarm-tls
+      hosts:
+        - aquafarm.cloud
+        - api.aquafarm.cloud
+
+# Enable autoscaling for production
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod disruption budget for production
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Network policies for production
+networkPolicy:
+  enabled: true
+
+# Use managed Postgres in production
+externalDatabase:
+  url: "${DATABASE_URL}" # set via --set-file or values secret in CI
+
+# Use managed Redis/S3 in production
+externalRedis:
+  url: "${REDIS_URL}"
+objectStorage:
+  provider: "s3"
+  endpoint: "${S3_ENDPOINT}"
+  region: "${S3_REGION}"
+  bucket: "${S3_BUCKET}"
+  useSSL: true
+  accessKey: "${S3_ACCESS_KEY}"
+  secretKey: "${S3_SECRET_KEY}"

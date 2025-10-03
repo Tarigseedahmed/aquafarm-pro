@@ -1,0 +1,166 @@
+/* AquaFarm Pro - Advanced Theme System */
+
+/* Base Theme Variables */
+:root {
+  --theme-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Default Aqua Theme */
+:root[data-theme="aqua"] {
+  --primary: 14 184 166; /* aqua-500 */
+  --primary-foreground: 255 255 255;
+  --secondary: 240 253 250; /* aqua-50 */
+  --secondary-foreground: 20 83 75; /* aqua-800 */
+  --accent: 45 212 191; /* aqua-400 */
+  --accent-foreground: 255 255 255;
+  --muted: 240 253 250; /* aqua-50 */
+  --muted-foreground: 83 91 90; /* aqua-600 */
+  --border: 204 251 241; /* aqua-200 */
+  --input: 204 251 241; /* aqua-200 */
+  --ring: 14 184 166; /* aqua-500 */
+  --background: 255 255 255;
+  --foreground: 20 83 75; /* aqua-800 */
+  --card: 255 255 255;
+  --card-foreground: 20 83 75; /* aqua-800 */
+  --popover: 255 255 255;
+  --popover-foreground: 20 83 75; /* aqua-800 */
+  --destructive: 239 68 68; /* red-500 */
+  --destructive-foreground: 255 255 255;
+}
+
+/* Ocean Blue Theme */
+:root[data-theme="ocean"] {
+  --primary: 14 165 233; /* blue-500 */
+  --primary-foreground: 255 255 255;
+  --secondary: 240 249 255; /* blue-50 */
+  --secondary-foreground: 30 64 175; /* blue-800 */
+  --accent: 59 130 246; /* blue-500 */
+  --accent-foreground: 255 255 255;
+  --muted: 240 249 255; /* blue-50 */
+  --muted-foreground: 100 116 139; /* slate-500 */
+  --border: 191 219 254; /* blue-200 */
+  --input: 191 219 254; /* blue-200 */
+  --ring: 14 165 233; /* blue-500 */
+  --background: 255 255 255;
+  --foreground: 15 23 42; /* slate-900 */
+  --card: 255 255 255;
+  --card-foreground: 15 23 42; /* slate-900 */
+  --popover: 255 255 255;
+  --popover-foreground: 15 23 42; /* slate-900 */
+  --destructive: 239 68 68; /* red-500 */
+  --destructive-foreground: 255 255 255;
+}
+
+/* Forest Green Theme */
+:root[data-theme="forest"] {
+  --primary: 34 197 94; /* green-500 */
+  --primary-foreground: 255 255 255;
+  --secondary: 240 253 244; /* green-50 */
+  --secondary-foreground: 22 101 52; /* green-800 */
+  --accent: 74 222 128; /* green-400 */
+  --accent-foreground: 255 255 255;
+  --muted: 240 253 244; /* green-50 */
+  --muted-foreground: 75 85 99; /* gray-600 */
+  --border: 187 247 208; /* green-200 */
+  --input: 187 247 208; /* green-200 */
+  --ring: 34 197 94; /* green-500 */
+  --background: 255 255 255;
+  --foreground: 22 101 52; /* green-800 */
+  --card: 255 255 255;
+  --card-foreground: 22 101 52; /* green-800 */
+  --popover: 255 255 255;
+  --popover-foreground: 22 101 52; /* green-800 */
+  --destructive: 239 68 68; /* red-500 */
+  --destructive-foreground: 255 255 255;
+}
+
+/* Dark Theme Overrides */
+.dark[data-theme="aqua"] {
+  --background: 15 23 42; /* slate-900 */
+  --foreground: 240 253 250; /* aqua-50 */
+  --card: 30 41 59; /* slate-800 */
+  --card-foreground: 240 253 250; /* aqua-50 */
+  --popover: 30 41 59; /* slate-800 */
+  --popover-foreground: 240 253 250; /* aqua-50 */
+  --primary: 45 212 191; /* aqua-400 */
+  --primary-foreground: 15 23 42; /* slate-900 */
+  --secondary: 51 65 85; /* slate-700 */
+  --secondary-foreground: 240 253 250; /* aqua-50 */
+  --muted: 51 65 85; /* slate-700 */
+  --muted-foreground: 148 163 184; /* slate-400 */
+  --border: 51 65 85; /* slate-700 */
+  --input: 51 65 85; /* slate-700 */
+  --ring: 45 212 191; /* aqua-400 */
+}
+
+.dark[data-theme="ocean"] {
+  --background: 15 23 42; /* slate-900 */
+  --foreground: 248 250 252; /* slate-50 */
+  --card: 30 41 59; /* slate-800 */
+  --card-foreground: 248 250 252; /* slate-50 */
+  --popover: 30 41 59; /* slate-800 */
+  --popover-foreground: 248 250 252; /* slate-50 */
+  --primary: 59 130 246; /* blue-500 */
+  --primary-foreground: 15 23 42; /* slate-900 */
+  --secondary: 51 65 85; /* slate-700 */
+  --secondary-foreground: 248 250 252; /* slate-50 */
+  --muted: 51 65 85; /* slate-700 */
+  --muted-foreground: 148 163 184; /* slate-400 */
+  --border: 51 65 85; /* slate-700 */
+  --input: 51 65 85; /* slate-700 */
+  --ring: 59 130 246; /* blue-500 */
+}
+
+.dark[data-theme="forest"] {
+  --background: 15 23 42; /* slate-900 */
+  --foreground: 240 253 244; /* green-50 */
+  --card: 30 41 59; /* slate-800 */
+  --card-foreground: 240 253 244; /* green-50 */
+  --popover: 30 41 59; /* slate-800 */
+  --popover-foreground: 240 253 244; /* green-50 */
+  --primary: 74 222 128; /* green-400 */
+  --primary-foreground: 15 23 42; /* slate-900 */
+  --secondary: 51 65 85; /* slate-700 */
+  --secondary-foreground: 240 253 244; /* green-50 */
+  --muted: 51 65 85; /* slate-700 */
+  --muted-foreground: 148 163 184; /* slate-400 */
+  --border: 51 65 85; /* slate-700 */
+  --input: 51 65 85; /* slate-700 */
+  --ring: 74 222 128; /* green-400 */
+}
+
+/* Theme Transition Effects */
+* {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom Theme Classes */
+.theme-aqua {
+  --theme-primary: 14 184 166;
+  --theme-accent: 45 212 191;
+}
+
+.theme-ocean {
+  --theme-primary: 14 165 233;
+  --theme-accent: 59 130 246;
+}
+
+.theme-forest {
+  --theme-primary: 34 197 94;
+  --theme-accent: 74 222 128;
+}
+
+/* Theme-specific gradients */
+.theme-aqua .gradient-bg {
+  background: linear-gradient(135deg, rgb(14 184 166) 0%, rgb(45 212 191) 100%);
+}
+
+.theme-ocean .gradient-bg {
+  background: linear-gradient(135deg, rgb(14 165 233) 0%, rgb(59 130 246) 100%);
+}
+
+.theme-forest .gradient-bg {
+  background: linear-gradient(135deg, rgb(34 197 94) 0%, rgb(74 222 128) 100%);
+}

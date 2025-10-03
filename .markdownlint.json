@@ -1,0 +1,11 @@
+{
+  "default": true,
+  "MD013": false,
+  "MD033": false,
+  "MD024": true,
+  "MD026": { "punctuation": ".,;:؟" },
+  "MD029": { "style": "one" },
+  "MD041": false,
+  "MD034": false,
+  "MD046": { "style": "fenced" }
+}

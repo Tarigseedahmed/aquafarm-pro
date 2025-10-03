@@ -1,0 +1,63 @@
+name: Feature Request
+description: Request a new feature for AquaFarm Pro
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a new feature for AquaFarm Pro!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: What problem does this feature solve?
+      placeholder: Describe the problem or limitation you're facing...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: What would you like to happen?
+      placeholder: Describe the solution you'd like to see...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What alternatives have you considered?
+      placeholder: Describe any alternative solutions you've considered...
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which component is this for?
+      options:
+        - Frontend (Web App)
+        - Mobile App
+        - Backend API
+        - Database
+        - Infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+      default: 1
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this feature request, you agree to follow our [Code of Conduct](../CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

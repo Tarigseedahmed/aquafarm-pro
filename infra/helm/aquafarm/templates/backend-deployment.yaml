@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-backend
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aquafarm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "aquafarm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "aquafarm.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-backend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry }}{{ if .Values.image.registry }}/{{ end }}{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-database
+                  key: url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-redis
+                  key: url
+            - name: OBJECT_STORAGE_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: provider
+            - name: OBJECT_STORAGE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: endpoint
+            - name: OBJECT_STORAGE_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: region
+            - name: OBJECT_STORAGE_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: bucket
+            - name: OBJECT_STORAGE_USE_SSL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: useSSL
+            - name: OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: accessKey
+            - name: OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aquafarm.fullname" . }}-object-storage
+                  key: secretKey
+            {{- if .Values.monitoring.tracing.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ include "aquafarm.fullname" . }}-otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "aquafarm-backend"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=aquafarm-backend,service.version=0.2.0"
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "aquafarm.fullname" . }}-config
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

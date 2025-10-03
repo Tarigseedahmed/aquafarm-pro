@@ -1,0 +1,48 @@
+{{- if .Values.monitoring.loki.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-loki
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "aquafarm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: loki
+  template:
+    metadata:
+      labels:
+        {{- include "aquafarm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: loki
+    spec:
+      containers:
+        - name: loki
+          image: grafana/loki:2.9.0
+          ports:
+            - containerPort: 3100
+              name: http
+          args:
+            - -config.file=/etc/loki/local-config.yaml
+          resources:
+            {{- toYaml .Values.monitoring.loki.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+              readOnly: true
+            - name: storage
+              mountPath: /loki
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "aquafarm.fullname" . }}-loki-config
+        - name: storage
+          {{- if .Values.monitoring.loki.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "aquafarm.fullname" . }}-loki-storage
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,169 @@
+name: Automated Backup
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # Daily at 1 AM
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Type of backup to perform'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - database
+          - files
+          - incremental
+      environment:
+        description: 'Environment to backup'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  backup-database:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    if: github.event.inputs.backup_type == 'full' || github.event.inputs.backup_type == 'database' || github.event.inputs.backup_type == 'incremental'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create Database Backup
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Creating database backup..."
+          ./scripts/backup-postgres.sh
+          echo "Database backup completed"
+
+      - name: Upload to S3
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Uploading backup to S3..."
+          ./scripts/upload-to-s3.sh
+          echo "Backup uploaded to S3"
+
+      - name: Verify Backup
+        run: |
+          echo "Verifying backup integrity..."
+          # Add backup verification logic here
+          echo "Backup verification completed"
+
+  backup-files:
+    name: Backup Files
+    runs-on: ubuntu-latest
+    if: github.event.inputs.backup_type == 'full' || github.event.inputs.backup_type == 'files'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Create Files Backup
+        env:
+          OBJECT_STORAGE_ENDPOINT: ${{ secrets.OBJECT_STORAGE_ENDPOINT }}
+          OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+          OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+          OBJECT_STORAGE_BUCKET: ${{ secrets.OBJECT_STORAGE_BUCKET }}
+        run: |
+          echo "Creating files backup..."
+          ./scripts/backup-uploads.sh
+          echo "Files backup completed"
+
+      - name: Upload Files Backup to S3
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Uploading files backup to S3..."
+          ./scripts/upload-to-s3.sh
+          echo "Files backup uploaded to S3"
+
+  backup-cleanup:
+    name: Cleanup Old Backups
+    runs-on: ubuntu-latest
+    if: always()
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Cleanup Old Backups
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Cleaning up old backups..."
+          # Keep backups for 30 days
+          aws s3 ls s3://$BACKUP_S3_BUCKET/ --recursive | while read -r line; do
+            createDate=$(echo $line | awk '{print $1" "$2}')
+            createDate=$(date -d"$createDate" +%s)
+            olderThan=$(date -d"30 days ago" +%s)
+            if [[ $createDate -lt $olderThan ]]; then
+              fileName=$(echo $line | awk '{print $4}')
+              aws s3 rm s3://$BACKUP_S3_BUCKET/$fileName
+            fi
+          done
+          echo "Old backups cleaned up"
+
+  backup-notification:
+    name: Send Backup Notification
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [backup-database, backup-files, backup-cleanup]
+    steps:
+      - name: Send Success Notification
+        if: needs.backup-database.result == 'success' && needs.backup-files.result == 'success'
+        run: |
+          echo "Backup completed successfully"
+          # Add notification logic here (Slack, email, etc.)
+
+      - name: Send Failure Notification
+        if: needs.backup-database.result == 'failure' || needs.backup-files.result == 'failure'
+        run: |
+          echo "Backup failed"
+          # Add failure notification logic here

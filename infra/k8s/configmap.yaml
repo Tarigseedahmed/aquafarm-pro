@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aquafarm-config
+  namespace: aquafarm-pro
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  
+  # Database Configuration
+  DB_TYPE: "postgres"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "aquafarm_prod"
+  DB_SSL: "true"
+  DB_SSL_REJECT_UNAUTHORIZED: "false"
+  
+  # Redis Configuration
+  REDIS_URL: "redis://redis-service:6379"
+  
+  # JWT Configuration
+  JWT_ACCESS_TOKEN_EXPIRES_IN: "15m"
+  JWT_REFRESH_TOKEN_EXPIRES_IN: "7d"
+  
+  # Security Configuration
+  BCRYPT_SALT_ROUNDS: "12"
+  CORS_ORIGIN: "https://aquafarm.cloud"
+  
+  # Rate Limiting
+  THROTTLE_TTL: "60"
+  THROTTLE_LIMIT: "100"
+  
+  # Monitoring
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_ENABLED: "true"
+  
+  # File Upload
+  MAX_FILE_SIZE: "10485760"
+  UPLOAD_DEST: "/app/uploads"
+  
+  # Cache Configuration
+  CACHE_TTL: "3600"
+  CACHE_MAX_SIZE: "10000"

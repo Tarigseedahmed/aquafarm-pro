@@ -1,0 +1,353 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Code Quality and Testing
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aquafarm_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    strategy:
+      matrix:
+        component: [backend, frontend, mobile]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: ${{ matrix.component }}/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd ${{ matrix.component }}
+        npm ci
+
+    - name: Run linting
+      run: |
+        cd ${{ matrix.component }}
+        npm run lint
+
+    - name: Run type checking
+      if: matrix.component != 'mobile'
+      run: |
+        cd ${{ matrix.component }}
+        npm run type-check
+
+    - name: Run unit tests
+      run: |
+        cd ${{ matrix.component }}
+        npm run test:unit
+      env:
+        DATABASE_URL: postgres://postgres:test_password@localhost:5432/aquafarm_test
+        REDIS_URL: redis://localhost:6379
+
+    - name: Run integration tests
+      if: matrix.component == 'backend'
+      run: |
+        cd backend
+        npm run test:integration
+      env:
+        DATABASE_URL: postgres://postgres:test_password@localhost:5432/aquafarm_test
+        REDIS_URL: redis://localhost:6379
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ${{ matrix.component }}/coverage/lcov.info
+        flags: ${{ matrix.component }}
+
+  # Security Scanning
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run npm audit
+      run: |
+        for dir in backend frontend mobile; do
+          cd $dir
+          npm audit --audit-level moderate
+          cd ..
+        done
+
+  # Build Docker Images
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.component }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ matrix.component }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # End-to-End Testing
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Start application stack
+      run: |
+        docker-compose -f docker-compose.test.yml up -d
+        sleep 30 # Wait for services to start
+
+    - name: Install E2E test dependencies
+      run: |
+        cd e2e-tests
+        npm ci
+
+    - name: Run E2E tests
+      run: |
+        cd e2e-tests
+        npm run test
+      env:
+        BASE_URL: http://localhost:3000
+
+    - name: Stop application stack
+      if: always()
+      run: docker-compose -f docker-compose.test.yml down
+
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: e2e-test-results
+        path: e2e-tests/test-results/
+
+  # Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build, e2e]
+    if: github.ref == 'refs/heads/develop' && false  # Disabled until AWS credentials are configured
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    # AWS deployment disabled - uncomment when AWS credentials are configured
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v4
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ vars.AWS_REGION }}
+
+    # - name: Update kubeconfig
+    #   run: |
+    #     aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }} --region ${{ vars.AWS_REGION }}
+
+    - name: Deploy to staging
+      run: |
+        helm upgrade --install aquafarm-staging ./infra/helm/aquafarm \
+          --namespace staging \
+          --create-namespace \
+          --set image.backend.tag=${{ github.sha }} \
+          --set image.frontend.tag=${{ github.sha }} \
+          --set environment=staging \
+          --values ./infra/helm/aquafarm/values-staging.yaml
+
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/backend -n staging
+        kubectl rollout status deployment/frontend -n staging
+
+    - name: Run smoke tests
+      run: |
+        # Wait for services to be ready
+        kubectl wait --for=condition=ready pod -l app=backend -n staging --timeout=300s
+        kubectl wait --for=condition=ready pod -l app=frontend -n staging --timeout=300s
+        
+        # Run basic health checks
+        BACKEND_URL=$(kubectl get svc backend -n staging -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+        curl -f http://$BACKEND_URL/health || exit 1
+
+  # Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build, e2e]
+    if: github.ref == 'refs/heads/main' && false  # Disabled until AWS credentials are configured
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    # AWS deployment disabled - uncomment when AWS credentials are configured
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v4
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ vars.AWS_REGION }}
+
+    # - name: Update kubeconfig
+    #   run: |
+    #     aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }} --region ${{ vars.AWS_REGION }}
+
+    - name: Deploy to production
+      run: |
+        helm upgrade --install aquafarm-production ./infra/helm/aquafarm \
+          --namespace production \
+          --create-namespace \
+          --set image.backend.tag=${{ github.sha }} \
+          --set image.frontend.tag=${{ github.sha }} \
+          --set environment=production \
+          --values ./infra/helm/aquafarm/values-production.yaml
+
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/backend -n production
+        kubectl rollout status deployment/frontend -n production
+
+    - name: Run production health checks
+      run: |
+        # Wait for services to be ready
+        kubectl wait --for=condition=ready pod -l app=backend -n production --timeout=300s
+        kubectl wait --for=condition=ready pod -l app=frontend -n production --timeout=300s
+        
+        # Run comprehensive health checks
+        BACKEND_URL=$(kubectl get svc backend -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+        curl -f http://$BACKEND_URL/health || exit 1
+        curl -f http://$BACKEND_URL/metrics || exit 1
+
+  # Notification
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && false  # Disabled until Slack webhook is configured
+    
+    steps:
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          Deployment Status: ${{ job.status }}
+          Repository: ${{ github.repository }}
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+      # env:
+      #   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always()

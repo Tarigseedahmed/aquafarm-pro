@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aquafarm-pro
+  labels:
+    name: aquafarm-pro
+    environment: production
+    app: aquafarm-pro

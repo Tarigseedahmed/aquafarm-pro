@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-config
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+data:
+  # Nginx configuration
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        
+        # Frontend
+        location / {
+            proxy_pass http://{{ include "aquafarm.fullname" . }}-frontend:{{ .Values.frontend.service.port }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Backend API
+        location /api {
+            proxy_pass http://{{ include "aquafarm.fullname" . }}-backend:{{ .Values.backend.service.port }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Metrics endpoint (restricted)
+        location /_metrics {
+            allow 10.0.0.0/8;
+            allow 172.16.0.0/12;
+            allow 192.168.0.0/16;
+            deny all;
+            
+            proxy_pass http://{{ include "aquafarm.fullname" . }}-backend:{{ .Values.backend.service.port }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Health check
+        location /health {
+            proxy_pass http://{{ include "aquafarm.fullname" . }}-backend:{{ .Values.backend.service.port }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+  
+  # Application configuration
+  app-config.yaml: |
+    environment: {{ .Values.environment }}
+    logging:
+      level: {{ .Values.backend.env.LOG_LEVEL | default "info" }}
+      enabled: {{ .Values.backend.env.ENABLE_LOGGING | default "true" }}
+    monitoring:
+      enabled: {{ .Values.monitoring.enabled }}
+      prometheus:
+        enabled: {{ .Values.monitoring.prometheus.enabled }}
+      grafana:
+        enabled: {{ .Values.monitoring.grafana.enabled }}

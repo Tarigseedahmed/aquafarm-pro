@@ -1,0 +1,6 @@
+Host srv1029413
+    HostName srv1029413.hstgr.cloud
+    User root
+    Port 22
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null

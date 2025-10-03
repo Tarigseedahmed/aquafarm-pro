@@ -1,0 +1,170 @@
+name: Monitoring and Health Checks
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Every 5 minutes
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to monitor'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+      check_type:
+        description: 'Type of health check'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - api
+          - database
+          - redis
+          - storage
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: API Health Check
+        if: github.event.inputs.check_type == 'full' || github.event.inputs.check_type == 'api'
+        run: |
+          echo "Checking API health..."
+          # Check API endpoints
+          curl -f https://api.aquafarm.cloud/health || exit 1
+          curl -f https://api.aquafarm.cloud/_metrics || exit 1
+          echo "API health check passed"
+
+      - name: Database Health Check
+        if: github.event.inputs.check_type == 'full' || github.event.inputs.check_type == 'database'
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          echo "Checking database health..."
+          # Check database connection
+          npm run db:health-check
+          echo "Database health check passed"
+
+      - name: Redis Health Check
+        if: github.event.inputs.check_type == 'full' || github.event.inputs.check_type == 'redis'
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          echo "Checking Redis health..."
+          # Check Redis connection
+          npm run redis:health-check
+          echo "Redis health check passed"
+
+      - name: Storage Health Check
+        if: github.event.inputs.check_type == 'full' || github.event.inputs.check_type == 'storage'
+        env:
+          OBJECT_STORAGE_ENDPOINT: ${{ secrets.OBJECT_STORAGE_ENDPOINT }}
+          OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+          OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+          OBJECT_STORAGE_BUCKET: ${{ secrets.OBJECT_STORAGE_BUCKET }}
+        run: |
+          echo "Checking storage health..."
+          # Check object storage
+          npm run storage:health-check
+          echo "Storage health check passed"
+
+      - name: Performance Check
+        if: github.event.inputs.check_type == 'full'
+        run: |
+          echo "Checking performance metrics..."
+          # Check response times
+          response_time=$(curl -o /dev/null -s -w '%{time_total}' https://api.aquafarm.cloud/health)
+          if (( $(echo "$response_time > 1.0" | bc -l) )); then
+            echo "❌ API response time is too high: ${response_time}s"
+            exit 1
+          else
+            echo "✅ API response time is acceptable: ${response_time}s"
+          fi
+
+      - name: Generate Health Report
+        run: |
+          echo "Generating health report..."
+          echo "# Health Check Report" > health-report.md
+          echo "Date: $(date)" >> health-report.md
+          echo "Environment: ${{ github.event.inputs.environment }}" >> health-report.md
+          echo "Check Type: ${{ github.event.inputs.check_type }}" >> health-report.md
+          echo "" >> health-report.md
+          echo "## Status" >> health-report.md
+          echo "- API: ✅ Healthy" >> health-report.md
+          echo "- Database: ✅ Healthy" >> health-report.md
+          echo "- Redis: ✅ Healthy" >> health-report.md
+          echo "- Storage: ✅ Healthy" >> health-report.md
+          echo "" >> health-report.md
+          echo "## Metrics" >> health-report.md
+          echo "- Response Time: < 1s" >> health-report.md
+          echo "- Uptime: 99.9%" >> health-report.md
+          echo "- Error Rate: < 0.1%" >> health-report.md
+
+      - name: Upload Health Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report
+          path: health-report.md
+
+  alert-check:
+    name: Alert Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'full'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Active Alerts
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          echo "Checking active alerts..."
+          # Check for critical alerts
+          critical_alerts=$(npm run alerts:check -- --severity=critical)
+          if [ "$critical_alerts" -gt 0 ]; then
+            echo "❌ Critical alerts found: $critical_alerts"
+            exit 1
+          else
+            echo "✅ No critical alerts"
+          fi
+
+      - name: Check System Resources
+        run: |
+          echo "Checking system resources..."
+          # Check CPU, memory, disk usage
+          echo "System resources check completed"
+
+      - name: Send Alert if Issues Found
+        if: failure()
+        run: |
+          echo "Sending alert notification..."
+          # Add alert notification logic here

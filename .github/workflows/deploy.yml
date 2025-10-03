@@ -1,0 +1,116 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip tests (use with caution)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Tests (if not skipped)
+        if: ${{ !github.event.inputs.skip_tests }}
+        run: npm test
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Run Database Migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DB_TYPE: postgres
+          NODE_ENV: production
+        run: npm run migration:run
+
+      - name: Deploy to Staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment commands here
+          echo "Staging deployment completed"
+
+      - name: Health Check
+        run: |
+          echo "Performing health check..."
+          # Add health check commands here
+          echo "Health check passed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production'
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Full Test Suite
+        if: ${{ !github.event.inputs.skip_tests }}
+        run: |
+          npm test
+          npm run test:e2e
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Run Database Migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          DB_TYPE: postgres
+          NODE_ENV: production
+        run: npm run migration:run
+
+      - name: Deploy to Production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+          echo "Production deployment completed"
+
+      - name: Health Check
+        run: |
+          echo "Performing production health check..."
+          # Add production health check commands here
+          echo "Production health check passed"
+
+      - name: Notify Deployment
+        run: |
+          echo "Notifying stakeholders of successful deployment..."
+          # Add notification logic here

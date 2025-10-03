@@ -1,0 +1,60 @@
+# =================================
+# AquaFarm Pro - Grafana Data Sources
+# =================================
+# 
+# تاريخ: 1 أكتوبر 2025
+# تكوين مصادر البيانات في Grafana
+# =================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 5s
+    secureJsonData:
+      basicAuthPassword: ""
+    basicAuth: false
+    basicAuthUser: ""
+
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: aquafarm_prod
+    user: aquafarm_user
+    secureJsonData:
+      password: "AquaFarm2025SecureDBPassword"
+    jsonData:
+      sslmode: "disable"
+      maxOpenConns: 0
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 15
+      timescaledb: false
+
+  - name: Redis
+    type: redis-datasource
+    access: proxy
+    url: redis:6379
+    jsonData:
+      client: standalone
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipeline: 0
+      separator: ":"
+      redisVersion: "7.0"
+      acl: false
+      user: ""
+    secureJsonData:
+      password: "AquaFarm2025RedisPassword"
+
+

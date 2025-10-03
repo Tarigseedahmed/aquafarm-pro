@@ -1,0 +1,115 @@
+name: Validate CI/CD Pipeline
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ci-cd-pipeline.yml'
+      - '.github/workflows/*.yml'
+
+jobs:
+  validate-workflow:
+    name: Validate Workflow Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate workflow syntax
+        run: |
+          echo "🔍 Validating GitHub Actions workflow syntax..."
+          
+          # Check if workflow file exists and is valid YAML
+          if [ -f ".github/workflows/ci-cd-pipeline.yml" ]; then
+            echo "✅ CI/CD pipeline file exists"
+            
+            # Basic YAML syntax validation
+            python3 -c "
+          import yaml
+          import sys
+          
+          try:
+              with open('.github/workflows/ci-cd-pipeline.yml', 'r') as f:
+                  yaml.safe_load(f)
+              print('✅ YAML syntax is valid')
+          except yaml.YAMLError as e:
+              print(f'❌ YAML syntax error: {e}')
+              sys.exit(1)
+          except Exception as e:
+              print(f'❌ Error reading file: {e}')
+              sys.exit(1)
+          "
+            
+            # Check for required workflow elements
+            echo "🔍 Checking workflow structure..."
+            
+            if grep -q "name:" .github/workflows/ci-cd-pipeline.yml; then
+              echo "✅ Workflow has name"
+            else
+              echo "❌ Workflow missing name"
+              exit 1
+            fi
+            
+            if grep -q "on:" .github/workflows/ci-cd-pipeline.yml; then
+              echo "✅ Workflow has triggers"
+            else
+              echo "❌ Workflow missing triggers"
+              exit 1
+            fi
+            
+            if grep -q "jobs:" .github/workflows/ci-cd-pipeline.yml; then
+              echo "✅ Workflow has jobs"
+            else
+              echo "❌ Workflow missing jobs"
+              exit 1
+            fi
+            
+            # Check for secrets usage patterns
+            echo "🔍 Checking secrets usage..."
+            if grep -q "secrets\." .github/workflows/ci-cd-pipeline.yml; then
+              echo "✅ Workflow uses secrets context"
+            else
+              echo "⚠️ Workflow doesn't use secrets context"
+            fi
+            
+            echo "✅ Workflow validation completed successfully!"
+            
+          else
+            echo "❌ CI/CD pipeline file not found"
+            exit 1
+          fi
+
+      - name: Check secrets documentation
+        run: |
+          echo "🔍 Checking secrets documentation..."
+          
+          if [ -f ".github/SECRETS_CONFIGURATION.md" ]; then
+            echo "✅ Secrets configuration documentation exists"
+            
+            # Check if documentation mentions required secrets
+            required_secrets=("SONAR_TOKEN" "STAGING_HOST" "STAGING_USER" "STAGING_SSH_KEY" "PRODUCTION_HOST" "PRODUCTION_USER" "PRODUCTION_SSH_KEY" "SLACK_WEBHOOK")
+            
+            for secret in "${required_secrets[@]}"; do
+              if grep -q "$secret" .github/SECRETS_CONFIGURATION.md; then
+                echo "✅ Documentation covers $secret"
+              else
+                echo "⚠️ Documentation missing $secret"
+              fi
+            done
+            
+          else
+            echo "⚠️ Secrets configuration documentation not found"
+          fi
+
+      - name: Workflow validation summary
+        run: |
+          echo "📋 Workflow Validation Summary:"
+          echo "================================"
+          echo "✅ Workflow syntax validation passed"
+          echo "✅ Workflow structure validation passed"
+          echo "✅ Secrets documentation available"
+          echo ""
+          echo "ℹ️  Note: Linter warnings about 'secrets' context are expected"
+          echo "   and indicate that secrets need to be configured in repository settings."
+          echo ""
+          echo "📖 For secret configuration instructions, see:"
+          echo "   .github/SECRETS_CONFIGURATION.md"

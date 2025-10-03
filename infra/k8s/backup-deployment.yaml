@@ -1,0 +1,307 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-backup
+  namespace: aquafarm-pro
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: postgres:15-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              set -e
+              
+              # Create backup directory
+              mkdir -p /backups
+              
+              # Generate backup filename with timestamp
+              BACKUP_FILE="/backups/aquafarm-backup-$(date +%Y%m%d-%H%M%S).sql"
+              
+              # Create database backup
+              echo "Starting database backup..."
+              PGPASSWORD=$DB_PASSWORD pg_dump \
+                -h $DB_HOST \
+                -p $DB_PORT \
+                -U $DB_USER \
+                -d $DB_NAME \
+                --verbose \
+                --no-password \
+                --format=custom \
+                --compress=9 \
+                --file="$BACKUP_FILE"
+              
+              # Verify backup
+              if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
+                echo "Backup completed successfully: $BACKUP_FILE"
+                echo "Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+                
+                # Upload to S3 (if configured)
+                if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+                  echo "Uploading backup to S3..."
+                  aws s3 cp "$BACKUP_FILE" "s3://$S3_BUCKET/backups/database/"
+                  echo "Backup uploaded to S3 successfully"
+                fi
+                
+                # Clean up old backups (keep last 7 days)
+                find /backups -name "aquafarm-backup-*.sql" -mtime +7 -delete
+                echo "Old backups cleaned up"
+              else
+                echo "Backup failed!"
+                exit 1
+              fi
+            env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: aquafarm-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: aquafarm-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: aquafarm-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: DB_PASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: S3_BUCKET
+              value: "aquafarm-backups"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "125m"
+              limits:
+                memory: "512Mi"
+                cpu: "250m"
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: aquafarm-pro
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: redis-backup
+            image: redis:7-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              set -e
+              
+              # Create backup directory
+              mkdir -p /backups
+              
+              # Generate backup filename with timestamp
+              BACKUP_FILE="/backups/redis-backup-$(date +%Y%m%d-%H%M%S).rdb"
+              
+              # Create Redis backup
+              echo "Starting Redis backup..."
+              redis-cli -h redis-service -p 6379 -a $REDIS_PASSWORD --rdb "$BACKUP_FILE"
+              
+              # Verify backup
+              if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
+                echo "Redis backup completed successfully: $BACKUP_FILE"
+                echo "Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+                
+                # Upload to S3 (if configured)
+                if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+                  echo "Uploading Redis backup to S3..."
+                  aws s3 cp "$BACKUP_FILE" "s3://$S3_BUCKET/backups/redis/"
+                  echo "Redis backup uploaded to S3 successfully"
+                fi
+                
+                # Clean up old backups (keep last 7 days)
+                find /backups -name "redis-backup-*.rdb" -mtime +7 -delete
+                echo "Old Redis backups cleaned up"
+              else
+                echo "Redis backup failed!"
+                exit 1
+              fi
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: REDIS_PASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: S3_BUCKET
+              value: "aquafarm-backups"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "62m"
+              limits:
+                memory: "256Mi"
+                cpu: "125m"
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: aquafarm-pro
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: gp2
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: files-backup
+  namespace: aquafarm-pro
+spec:
+  schedule: "0 4 * * *"  # Daily at 4 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: files-backup
+            image: alpine:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              set -e
+              
+              # Install required packages
+              apk add --no-cache tar gzip aws-cli
+              
+              # Create backup directory
+              mkdir -p /backups
+              
+              # Generate backup filename with timestamp
+              BACKUP_FILE="/backups/files-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+              
+              # Create files backup
+              echo "Starting files backup..."
+              tar -czf "$BACKUP_FILE" /uploads /logs
+              
+              # Verify backup
+              if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
+                echo "Files backup completed successfully: $BACKUP_FILE"
+                echo "Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+                
+                # Upload to S3 (if configured)
+                if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+                  echo "Uploading files backup to S3..."
+                  aws s3 cp "$BACKUP_FILE" "s3://$S3_BUCKET/backups/files/"
+                  echo "Files backup uploaded to S3 successfully"
+                fi
+                
+                # Clean up old backups (keep last 7 days)
+                find /backups -name "files-backup-*.tar.gz" -mtime +7 -delete
+                echo "Old files backups cleaned up"
+              else
+                echo "Files backup failed!"
+                exit 1
+              fi
+            env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquafarm-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: S3_BUCKET
+              value: "aquafarm-backups"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            - name: uploads-storage
+              mountPath: /uploads
+            - name: logs-storage
+              mountPath: /logs
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "62m"
+              limits:
+                memory: "256Mi"
+                cpu: "125m"
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+          - name: uploads-storage
+            persistentVolumeClaim:
+              claimName: uploads-pvc
+          - name: logs-storage
+            persistentVolumeClaim:
+              claimName: logs-pvc
+          restartPolicy: OnFailure

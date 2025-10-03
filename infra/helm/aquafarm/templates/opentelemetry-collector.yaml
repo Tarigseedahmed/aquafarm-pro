@@ -1,0 +1,70 @@
+{{- if .Values.monitoring.tracing.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-otel-collector
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "aquafarm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: otel-collector
+  template:
+    metadata:
+      labels:
+        {{- include "aquafarm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.88.0
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 8888
+              name: metrics
+          args:
+            - --config=/etc/otel-collector-config.yaml
+          resources:
+            {{- toYaml .Values.monitoring.tracing.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel-collector-config.yaml
+              subPath: otel-collector-config.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "aquafarm.fullname" . }}-otel-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aquafarm.fullname" . }}-otel-collector
+  labels:
+    {{- include "aquafarm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4317
+      targetPort: 4317
+      protocol: TCP
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      protocol: TCP
+      name: otlp-http
+    - port: 8888
+      targetPort: 8888
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "aquafarm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+{{- end }}

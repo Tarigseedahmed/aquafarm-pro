@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: aquafarm-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aquafarm_dev
+      POSTGRES_USER: aquafarm
+      POSTGRES_PASSWORD: aquafarm123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - aquafarm-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aquafarm"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: aquafarm-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - aquafarm-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API (NestJS)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: aquafarm-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: aquafarm_dev
+      DB_USER: aquafarm
+      DB_PASSWORD: aquafarm123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: dev-jwt-secret-key
+      CORS_ORIGIN: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aquafarm-dev-network
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
+    command: sh -c "npm install && npm run start:dev"
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: aquafarm-frontend-dev
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3001
+      NODE_ENV: development
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    networks:
+      - aquafarm-dev-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "npm install && npm run dev"
+
+  # Nginx Reverse Proxy (Optional for development)
+  nginx:
+    image: nginx:alpine
+    container_name: aquafarm-nginx-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/aquafarm.dev.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - aquafarm-dev-network
+    profiles:
+      - nginx
+
+# Volumes
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+# Networks
+networks:
+  aquafarm-dev-network:
+    driver: bridge

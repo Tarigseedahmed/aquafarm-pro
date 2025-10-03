@@ -1,0 +1,111 @@
+# Staging environment values for aquafarm
+# This overrides values.yaml for staging deployment
+
+environment: staging
+
+# Backend configuration for staging
+backend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  env:
+    NODE_ENV: staging
+    LOG_LEVEL: "debug"
+    ENABLE_LOGGING: "true"
+
+# Frontend configuration for staging
+frontend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 125m
+      memory: 128Mi
+
+# PostgreSQL for staging (smaller resources)
+postgresql:
+  enabled: false
+  primary:
+    persistence:
+      size: 10Gi
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Redis for staging
+redis:
+  master:
+    persistence:
+      size: 4Gi
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 125m
+        memory: 128Mi
+
+# Monitoring for staging (optional)
+monitoring:
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+# External managed Redis/S3 for staging
+externalRedis:
+  url: "${REDIS_URL}"
+objectStorage:
+  provider: "s3"
+  endpoint: "${S3_ENDPOINT}"
+  region: "${S3_REGION}"
+  bucket: "${S3_BUCKET}"
+  useSSL: true
+  accessKey: "${S3_ACCESS_KEY}"
+  secretKey: "${S3_SECRET_KEY}"
+
+# Ingress for staging
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  
+  hosts:
+    - host: staging.aquafarm.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 3000
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 3000
+  
+  tls: []
+
+# Disable autoscaling for staging
+autoscaling:
+  enabled: false
+
+# Use managed Postgres in staging
+externalDatabase:
+  url: "${DATABASE_URL}" # set via CI or a sealed secret

@@ -1,0 +1,370 @@
+# Default values for aquafarm
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Image configuration
+image:
+  registry: docker.io
+  pullPolicy: IfNotPresent
+  backend:
+    repository: aquafarm/backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: aquafarm/frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# Environment configuration
+environment: development
+
+# Backend service configuration
+backend:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: aquafarm/backend
+    tag: ""
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    DB_TYPE: postgres
+    JWT_SECRET: ""
+    JWT_EXPIRES_IN: "24h"
+    REFRESH_EXPIRES_IN: "7d"
+    CORS_ORIGIN: ""
+    ENABLE_LOGGING: "true"
+    LOG_LEVEL: "info"
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Frontend service configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: aquafarm/frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  env:
+    NEXT_PUBLIC_API_URL: ""
+    NEXT_PUBLIC_APP_URL: ""
+  
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Nginx ingress controller
+nginx:
+  enabled: true
+  replicaCount: 2
+  
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 80
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  config:
+    server_tokens: "off"
+    client_max_body_size: "10m"
+    proxy_connect_timeout: "60s"
+    proxy_send_timeout: "60s"
+    proxy_read_timeout: "60s"
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""
+    username: "aquafarm"
+    password: ""
+    database: "aquafarm_prod"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# External managed database (disable in-cluster Postgres when set)
+externalDatabase:
+  url: "" # e.g. postgresql://user:pass@host:5432/dbname
+
+# Redis cache
+redis:
+  enabled: true
+  auth:
+    enabled: false
+    password: ""
+  
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# External managed Redis (disable in-cluster Redis when set)
+externalRedis:
+  url: "" # e.g. redis://:password@host:6379
+
+# Object storage (S3/MinIO)
+objectStorage:
+  provider: "s3"           # s3|minio
+  endpoint: ""             # e.g. https://s3.amazonaws.com or http://minio:9000
+  region: ""               # e.g. us-east-1 (optional for MinIO)
+  bucket: ""               # bucket name
+  useSSL: true              # false for MinIO without TLS
+  accessKey: ""            # will be stored in secret
+  secretKey: ""            # will be stored in secret
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: true
+        size: 10Gi
+        storageClass: ""
+      
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 250m
+          memory: 512Mi
+  
+  grafana:
+    enabled: true
+    adminPassword: ""
+    
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    
+    dashboards:
+      default:
+        aquafarm-observability:
+          gnetId: 0
+          revision: 0
+          datasource: Prometheus
+  
+  # Logging with Loki
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  
+  # Log collection with Promtail
+  promtail:
+    enabled: true
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  # Distributed tracing with OpenTelemetry
+  tracing:
+    enabled: true
+    jaegerEndpoint: "" # e.g. jaeger:14250
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  hosts:
+    - host: aquafarm.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 3000
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 3000
+        - path: /_metrics
+          pathType: Prefix
+          service:
+            name: backend
+            port: 3000
+  
+  tls:
+    - secretName: aquafarm-tls
+      hosts:
+        - aquafarm.cloud
+        - api.aquafarm.cloud
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 2000
+
+# Security context
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Network policies
+networkPolicy:
+  enabled: false
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
